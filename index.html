@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Поиск оборудования по адресу</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f6f9; --card:#fff; --border:#dfe3e8; --text:#1f2933;
+    --muted:#6b7280; --accent:#2563eb; --accent-soft:#e8f0fe;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+       background:var(--bg);color:var(--text);line-height:1.45}
+  header{background:#0f172a;color:#fff;padding:20px 24px}
+  header h1{margin:0;font-size:20px;font-weight:600}
+  header p{margin:4px 0 0;font-size:13px;color:#cbd5e1}
+  .wrap{max-width:1200px;margin:0 auto;padding:20px 24px 60px}
+  .searchbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .searchbar input{flex:1;min-width:240px;padding:12px 14px;font-size:16px;
+       border:1px solid var(--border);border-radius:10px;background:#fff;outline:none}
+  .searchbar input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .searchbar input:disabled{background:#eef1f5;color:#9aa3ad}
+  .searchbar button{padding:12px 20px;font-size:15px;border:0;border-radius:10px;
+       background:var(--accent);color:#fff;cursor:pointer;font-weight:600}
+  .searchbar button:disabled{background:#9db8f0;cursor:not-allowed}
+  .searchbar button:hover:not(:disabled){background:#1d4ed8}
+  .hint{font-size:13px;color:var(--muted);margin-bottom:14px}
+  .status{font-size:14px;color:var(--muted);margin:10px 0 16px}
+  .status b{color:var(--text)}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;
+        padding:16px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .card h3{margin:0 0 4px;font-size:16px;color:var(--accent)}
+  .card .sheet{font-size:12px;color:var(--muted);margin-bottom:10px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 18px}
+  .field{font-size:14px}
+  .field .label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+       color:var(--muted);margin-bottom:2px}
+  .field .value{font-weight:500;word-break:break-word}
+  .field .value.empty{color:#9aa3ad;font-weight:400;font-style:italic}
+  .no-results{padding:24px;text-align:center;color:var(--muted);background:#fff;
+       border:1px dashed var(--border);border-radius:12px}
+  .err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;
+       padding:12px 14px;border-radius:10px;margin-bottom:14px;font-size:14px}
+  .loading{background:#eef4ff;border:1px solid #c7d7fe;color:#1e40af;
+       padding:12px 14px;border-radius:10px;margin-bottom:14px;font-size:14px}
+  @media (max-width:600px){.wrap{padding:14px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Поиск оборудования по адресу</h1>
+  <p>Данные подтягиваются из файла Excel, лежащего рядом с этой страницей</p>
+</header>
+
+<div class="wrap">
+  <div id="loading" class="loading">Загрузка файла Excel…</div>
+  <div id="error" class="err" style="display:none"></div>
+
+  <div class="searchbar">
+    <input id="q" type="search" placeholder="Введите адрес, например: Гагарина 18, Поповича 7…" disabled autocomplete="off">
+    <button id="btn" disabled>Найти</button>
+  </div>
+  <div class="hint">
+    Поиск нечувствителен к регистру, букве «ё», точкам/запятым. Можно вводить часть адреса —
+    только улицу или только номер дома.
+  </div>
+  <div id="status" class="status"></div>
+  <div id="results"></div>
+</div>
+
+<script>
+/* ============================================================
+   Имя Excel-файла в корне репозитория (рядом с index.html).
+   Если переименуете файл — поменяйте строку ниже.
+   ============================================================ */
+const EXCEL_FILE = 'data.xlsx';
+
+let RECORDS = [];
+const $q       = document.getElementById('q');
+const $btn     = document.getElementById('btn');
+const $status  = document.getElementById('status');
+const $results = document.getElementById('results');
+const $error   = document.getElementById('error');
+const $loading = document.getElementById('loading');
+
+/* ---------- Загрузка при старте ---------- */
+(async function init(){
+  try {
+    const res = await fetch(EXCEL_FILE, { cache: 'no-store' });
+    if (!res.ok) {
+      throw new Error('HTTP ' + res.status + ' — файл «' + EXCEL_FILE + '» не найден рядом с index.html.');
+    }
+    const buf = await res.arrayBuffer();
+    const wb  = XLSX.read(buf, { type: 'array', cellDates: true });
+
+    RECORDS = buildRecords(wb);
+    if (RECORDS.length === 0) {
+      throw new Error('В файле не найдено распознаваемых строк. Проверьте листы «ФОЛЮШ», «Ант», «Спецвидеосервис» и адреса в столбце A.');
+    }
+
+    $loading.style.display = 'none';
+    $q.disabled = false;
+    $btn.disabled = false;
+    $q.focus();
+    $status.innerHTML = 'Загружено записей: <b>' + RECORDS.length + '</b>';
+  } catch (err) {
+    console.error(err);
+    $loading.style.display = 'none';
+    showError(
+      'Не удалось загрузить данные: ' + (err.message || err) +
+      ' Убедитесь, что файл «' + EXCEL_FILE + '» лежит в корне репозитория рядом с index.html.'
+    );
+  }
+})();
+
+/* ---------- Чтение листов ---------- */
+function sheetToRows(ws){
+  return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+}
+
+function detectColumns(rows){
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(6, rows.length); i++){
+    const r = rows[i].map(v => String(v).toLowerCase());
+    if (r.some(v => v.includes('улица')) || r.some(v => v.includes('адрес'))){
+      headerIdx = i; break;
+    }
+  }
+  if (headerIdx === -1) headerIdx = 0;
+
+  const header = rows[headerIdx].map(v => String(v).toLowerCase());
+  const find = (kw) => header.findIndex(h => h.includes(kw));
+  const findLoc = () => {
+    const a = find('раположение'); return a >= 0 ? a : find('расположение');
+  };
+  const firstLoc = findLoc();
+  let secondLoc = -1;
+  if (firstLoc >= 0){
+    for (let i = firstLoc + 1; i < header.length; i++){
+      if (header[i].includes('раположение') || header[i].includes('расположение')){ secondLoc = i; break; }
+    }
+  }
+  return {
+    headerIdx,
+    colAddr:   Math.max(0, find('улица') >= 0 ? find('улица') : find('адрес')),
+    colLoc1:   firstLoc,
+    colLoc2:   secondLoc,
+    colEquip:  find('оборудование') >= 0 ? find('оборудование') : find('оборуд'),
+    colEth:    find('ethernet') >= 0 ? find('ethernet') : find('ящики'),
+    colComm:   find('коммутатор') >= 0 ? find('коммутатор') : find('№ ком'),
+    colAccess: find('доступ') >= 0 ? find('доступ') : -1,
+  };
+}
+
+function extractSheet(name, ws){
+  const rows = sheetToRows(ws);
+  if (rows.length === 0) return [];
+
+  const c = detectColumns(rows);
+  const out = [];
+  let current = null;
+
+  const get = (row, idx) => (idx >= 0 && idx < row.length) ? String(row[idx] ?? '').trim() : '';
+
+  for (let i = c.headerIdx + 1; i < rows.length; i++){
+    const row = rows[i];
+    const addr = get(row, c.colAddr);
+    if (addr){
+      current = { addr, sheet: name, locParts: [], equipParts: [], ethParts: [], commParts: [], accessParts: [] };
+      out.push(current);
+      pushParts(current, row, c);
+    } else if (current){
+      pushParts(current, row, c);
+    }
+  }
+
+  return out.map(r => ({
+    addr:   r.addr,
+    sheet:  r.sheet,
+    loc:    uniqJoin(r.locParts),
+    equip:  uniqJoin(r.equipParts),
+    eth:    uniqJoin(r.ethParts),
+    comm:   uniqJoin(r.commParts),
+    access: uniqJoin(r.accessParts),
+  }));
+}
+
+function pushParts(rec, row, c){
+  const get = (idx) => (idx >= 0 && idx < row.length) ? String(row[idx] ?? '').trim() : '';
+  const loc1 = get(c.colLoc1), loc2 = get(c.colLoc2);
+  let loc = '';
+  if (loc1 && loc2) loc = loc1 + ' — ' + loc2;
+  else loc = loc1 || loc2;
+
+  pushIf(rec.locParts,    loc);
+  pushIf(rec.equipParts,  get(c.colEquip));
+  pushIf(rec.ethParts,    get(c.colEth));
+  pushIf(rec.commParts,   get(c.colComm));
+  pushIf(rec.accessParts, get(c.colAccess));
+}
+
+function pushIf(arr, v){
+  v = String(v ?? '').trim();
+  if (!v) return;
+  if (!arr.includes(v)) arr.push(v);
+}
+
+function uniqJoin(arr){ return arr.join('; '); }
+
+function buildRecords(wb){
+  const wanted = ['ФОЛЮШ', 'Ант', 'Спецвидеосервис'];
+  const result = [];
+  for (const name of wb.SheetNames){
+    const match = wanted.find(w =>
+      name.toLowerCase().includes(w.toLowerCase()) ||
+      w.toLowerCase().includes(name.toLowerCase())
+    );
+    if (!match) continue;
+    const ws = wb.Sheets[name];
+    if (!ws) continue;
+    try { result.push(...extractSheet(name, ws)); }
+    catch (e){ console.warn('Лист не обработан:', name, e); }
+  }
+  return result;
+}
+
+/* ---------- Поиск ---------- */
+function norm(s){
+  return String(s || '')
+    .toLowerCase()
+    .replace(/ё/g,'е')
+    .replace(/\s+/g,' ')
+    .replace(/[.,]/g,' ')
+    .replace(/\bд\b/g,'')
+    .replace(/\bкорп\b/g,'')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function search(query){
+  const nq = norm(query);
+  if(!nq) return [];
+  const tokens = nq.split(' ').filter(Boolean);
+  return RECORDS.filter(rec => {
+    const na = norm(rec.addr);
+    return tokens.every(t => na.includes(t));
+  }).sort((a,b) => {
+    const na = norm(a.addr), nb = norm(b.addr);
+    const exactA = na === nq ? 0 : 1;
+    const exactB = nb === nq ? 0 : 1;
+    if(exactA !== exactB) return exactA - exactB;
+    return a.addr.localeCompare(b.addr, 'ru');
+  });
+}
+
+function esc(s){
+  return String(s || '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+function field(label, value){
+  const v = (value === undefined || value === null || String(value).trim() === '')
+    ? '<span class="value empty">—</span>'
+    : '<span class="value">' + esc(value) + '</span>';
+  return '<div class="field"><div class="label">' + esc(label) + '</div>' + v + '</div>';
+}
+
+function render(list, query){
+  if(!query.trim()){ $status.textContent=''; $results.innerHTML=''; return; }
+  if(list.length === 0){
+    $status.innerHTML = 'По запросу <b>' + esc(query) + '</b> ничего не найдено.';
+    $results.innerHTML = '<div class="no-results">Попробуйте ввести часть адреса: только улицу или только номер дома.</div>';
+    return;
+  }
+  $status.innerHTML = 'Найдено записей: <b>' + list.length + '</b> по запросу «' + esc(query) + '»';
+  $results.innerHTML = list.map(rec =>
+    '<div class="card">' +
+      '<h3>' + esc(rec.addr) + '</h3>' +
+      '<div class="sheet">Лист: ' + esc(rec.sheet) + '</div>' +
+      '<div class="grid">' +
+        field('Расположение оборудования', rec.loc) +
+        field('Название оборудования', rec.equip) +
+        field('Ящики Ethernet', rec.eth) +
+        field('№ коммутатора', rec.comm) +
+        field('Доступ к оборудованию', rec.access) +
+      '</div>' +
+    '</div>'
+  ).join('');
+}
+
+function doSearch(){
+  if(!RECORDS.length) return;
+  const q = $q.value;
+  render(search(q), q);
+}
+
+$btn.addEventListener('click', doSearch);
+$q.addEventListener('input', doSearch);
+$q.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
+
+function showError(msg){ $error.textContent = msg; $error.style.display = 'block'; }
+</script>
+</body>
+</html>
