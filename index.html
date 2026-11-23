@@ -10,6 +10,8 @@
     --bg:#f4f6f9; --card:#fff; --border:#dfe3e8; --text:#1f2933;
     --muted:#6b7280; --accent:#2563eb; --accent-soft:#e8f0fe;
     --loc-bg:#f1f5f9; --loc-border:#cbd5e1;
+    --new:#047857; --new-bg:#ecfdf5;
+    --old:#b45309; --old-bg:#fffbeb;
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
@@ -49,6 +51,14 @@
   .extra{margin-top:8px;font-size:13px;color:#374151}
   .extra .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.04em;
        color:var(--muted);margin-bottom:1px}
+  /* Бейджи доступа */
+  .access-new, .access-old{
+    display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;
+    font-weight:700;letter-spacing:.03em;margin-right:6px;text-transform:uppercase;
+    vertical-align:middle;
+  }
+  .access-new{background:var(--new-bg);color:var(--new);border:1px solid #a7f3d0}
+  .access-old{background:var(--old-bg);color:var(--old);border:1px solid #fde68a}
   .no-results{padding:24px;text-align:center;color:var(--muted);background:#fff;
        border:1px dashed var(--border);border-radius:12px}
   .err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;
@@ -126,13 +136,12 @@ function sheetToRows(ws){
   return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
 }
 
-function detectColumns(rows){
+function detectColumns(rows, sheetName){
   const KEYS = {
     addr:   ['улица', 'адрес'],
     loc:    ['раположение', 'расположение'],
     equip:  ['оборудование', 'оборуд'],
     eth:    ['ethernet', 'ящики'],
-    access: ['доступ'],
   };
 
   let best = { idx: -1, score: 0, header: [] };
@@ -168,6 +177,39 @@ function detectColumns(rows){
     colComm = find(['коммутатор', '№ ком', 'инв']);
   }
 
+  /* ---------- Столбцы «Доступ к оборудованию» ----------
+     Ищем ВСЕ столбцы, в заголовке которых есть «доступ».
+     Для листа «Девятовка» (или любого другого) может быть 1 или 2 таких столбца:
+       • если в заголовке есть «верный» → это «новый» доступ
+       • иначе                          → это «старый» доступ
+     Если столбец один — он считается «обычным» (без пометки).
+     ---------------------------------------------------- */
+  const accessIdxes = [];
+  header.forEach((h, i) => {
+    if (h.includes('доступ')) accessIdxes.push({ idx: i, header: h });
+  });
+
+  let colAccessNew = -1;  // "Доступ к оборудованию Верный" → новый
+  let colAccessOld = -1;  // "Доступ к оборудованию"        → старый
+  let colAccessPlain = -1;// единственный столбец без пары
+
+  if (accessIdxes.length === 1){
+    colAccessPlain = accessIdxes[0].idx;
+  } else if (accessIdxes.length >= 2){
+    for (const a of accessIdxes){
+      if (a.header.includes('верный')){
+        if (colAccessNew < 0) colAccessNew = a.idx;
+      } else {
+        if (colAccessOld < 0) colAccessOld = a.idx;
+      }
+    }
+    // Если «верного» не нашлось, но столбцов ≥2 — первый считаем старым, второй новым
+    if (colAccessNew < 0 && colAccessOld < 0){
+      colAccessOld = accessIdxes[0].idx;
+      colAccessNew = accessIdxes[1].idx;
+    }
+  }
+
   return {
     headerIdx: best.idx,
     colAddr:   find(KEYS.addr),
@@ -176,32 +218,25 @@ function detectColumns(rows){
     colEquip,
     colComm,
     colEth:    find(KEYS.eth),
-    colAccess: find(KEYS.access),
+    colAccessNew,
+    colAccessOld,
+    colAccessPlain,
   };
 }
 
 /* ============================================================
    ИЗВЛЕЧЕНИЕ С НАСЛЕДОВАНИЕМ РАСПОЛОЖЕНИЯ
-   ------------------------------------------------------------
-   Идём по строкам сверху вниз и держим «состояние»:
-     currentAddr  — последний встреченный адрес
-     currentLoc   — последнее встреченное расположение
-   Правила:
-     • адрес непустой → новая карточка дома, сброс currentLoc.
-     • адрес пустой, расположение непустое → обновляем currentLoc.
-     • адрес пустой, расположение пустое, но есть оборудование/№ →
-       оборудование относится к currentLoc (наследование).
    ============================================================ */
 function extractSheet(name, ws){
   const rows = sheetToRows(ws);
   if (rows.length === 0) return [];
 
-  const c = detectColumns(rows);
+  const c = detectColumns(rows, name);
   if (c.colAddr < 0) return [];
 
   const out = [];
-  let current = null;   // текущая карточка дома
-  let currentLoc = '';  // последнее непустое расположение
+  let current = null;
+  let currentLoc = '';
 
   const get = (row, idx) => (idx >= 0 && idx < row.length) ? String(row[idx] ?? '').trim() : '';
 
@@ -214,51 +249,49 @@ function extractSheet(name, ws){
     const equip = get(row, c.colEquip);
     const comm  = get(row, c.colComm);
     const eth   = get(row, c.colEth);
-    const access= get(row, c.colAccess);
 
-    // Собираем расположение из двух возможных столбцов
+    const accessNew   = get(row, c.colAccessNew);
+    const accessOld   = get(row, c.colAccessOld);
+    const accessPlain = get(row, c.colAccessPlain);
+
     let loc = '';
     if (loc1 && loc2) loc = loc1 + ' · ' + loc2;
     else loc = loc1 || loc2;
 
-    // 1) Новый дом
     if (addr){
       current = {
         addr,
         sheet: name,
-        blocks: [],       // [{ loc, items:[{equip,comm}] }]
+        blocks: [],
         ethParts: [],
-        accessParts: [],
+        accessNewParts: [],
+        accessOldParts: [],
+        accessPlainParts: [],
       };
       out.push(current);
-      currentLoc = '';    // сбрасываем наследование для нового дома
+      currentLoc = '';
     }
 
-    if (!current) continue;   // строки до первого адреса пропускаем
+    if (!current) continue;
 
-    // 2) Обновляем текущее расположение, если оно указано
     if (loc) currentLoc = loc;
 
-    // 3) Определяем, к какому расположению отнести оборудование
     const targetLoc = loc || currentLoc;
 
-    // 4) Если в строке есть оборудование или № коммутатора — добавляем в блок
     if (equip || comm){
       addEquip(current, targetLoc || 'Расположение не указано', equip, comm);
     } else if (targetLoc){
-      // Строка без оборудования, но с расположением — создаём пустой блок-заголовок,
-      // чтобы было видно, что такое место существует (без оборудования).
-      // Но если блок уже есть — не дублируем.
       ensureBlock(current, targetLoc);
     }
 
-    if (eth)    pushUnique(current.ethParts, eth);
-    if (access) pushUnique(current.accessParts, access);
+    if (eth) pushUnique(current.ethParts, eth);
+
+    // Доступы: каждый в свой список
+    if (accessNew)   pushUnique(current.accessNewParts,   accessNew);
+    if (accessOld)   pushUnique(current.accessOldParts,   accessOld);
+    if (accessPlain) pushUnique(current.accessPlainParts, accessPlain);
   }
 
-  // Пост-обработка: убираем пустые блоки (без оборудования),
-  // кроме случаев, когда во всём доме нет ни одного оборудования —
-  // тогда оставляем хотя бы расположения.
   return out.map(r => {
     const blocks = r.blocks
       .map(b => ({
@@ -272,12 +305,13 @@ function extractSheet(name, ws){
       sheet:  r.sheet,
       blocks: blocks.length ? blocks : r.blocks,
       eth:    r.ethParts.join('; '),
-      access: r.accessParts.join('; '),
+      accessNew:   r.accessNewParts.join('; '),
+      accessOld:   r.accessOldParts.join('; '),
+      accessPlain: r.accessPlainParts.join('; '),
     };
   });
 }
 
-/* Найти или создать блок по расположению */
 function ensureBlock(rec, loc){
   let b = rec.blocks.find(x => x.loc === loc);
   if (!b){
@@ -287,10 +321,8 @@ function ensureBlock(rec, loc){
   return b;
 }
 
-/* Добавить оборудование в блок расположения */
 function addEquip(rec, loc, equip, comm){
   const b = ensureBlock(rec, loc);
-  // если такая же пара уже есть — не дублируем
   const dup = b.items.some(it => it.equip === equip && it.comm === comm);
   if (!dup) b.items.push({ equip, comm });
 }
@@ -376,6 +408,20 @@ function renderBlock(block){
          '</div>';
 }
 
+/* Блок «Доступ к оборудованию» с бейджем «новый»/«старый» */
+function renderAccess(label, value, kind){
+  if (!value) return '';
+  const badge = kind === 'new'
+    ? '<span class="access-new">новый</span>'
+    : kind === 'old'
+      ? '<span class="access-old">старый</span>'
+      : '';
+  return '<div class="extra">' +
+           '<div class="lbl">' + esc(label) + '</div>' +
+           badge + esc(value) +
+         '</div>';
+}
+
 function render(list, query){
   if(!query.trim()){ $status.textContent=''; $results.innerHTML=''; return; }
   if(list.length === 0){
@@ -394,8 +440,15 @@ function render(list, query){
     if (rec.eth){
       extra.push('<div class="extra"><div class="lbl">Ящики Ethernet</div>' + esc(rec.eth) + '</div>');
     }
-    if (rec.access){
-      extra.push('<div class="extra"><div class="lbl">Доступ к оборудованию</div>' + esc(rec.access) + '</div>');
+
+    /* Особый случай: лист «Девятовка» — два столбца доступа.
+       Если хотя бы один из «новый/старый» заполнен — выводим их
+       с пометками. Иначе — обычный одиночный доступ (если есть). */
+    if (rec.accessNew || rec.accessOld){
+      extra.push(renderAccess('Доступ к оборудованию', rec.accessNew, 'new'));
+      extra.push(renderAccess('Доступ к оборудованию', rec.accessOld, 'old'));
+    } else if (rec.accessPlain){
+      extra.push(renderAccess('Доступ к оборудованию', rec.accessPlain, 'plain'));
     }
 
     return '<div class="card">' +
