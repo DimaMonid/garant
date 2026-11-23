@@ -12,6 +12,7 @@
     --loc-bg:#f1f5f9; --loc-border:#cbd5e1;
     --new:#047857; --new-bg:#ecfdf5;
     --old:#b45309; --old-bg:#fffbeb;
+    --demo:#b91c1c; --demo-bg:#fef2f2; --demo-border:#fecaca;
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
@@ -32,10 +33,30 @@
   .hint{font-size:13px;color:var(--muted);margin-bottom:14px}
   .status{font-size:14px;color:var(--muted);margin:10px 0 16px}
   .status b{color:var(--text)}
+
+  /* ---------- Карточка дома ---------- */
   .card{background:var(--card);border:1px solid var(--border);border-radius:12px;
         padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
   .card h3{margin:0 0 2px;font-size:17px;color:var(--accent)}
   .card .sheet{font-size:12px;color:var(--muted);margin-bottom:12px}
+  .card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .card-head h3{flex:1;min-width:200px}
+
+  /* Демонтаж: карточка приглушена, но информация видна */
+  .card.demounted{background:#fff;border-color:var(--demo-border);box-shadow:none}
+  .card.demounted h3{color:#7f1d1d;text-decoration:line-through;
+        text-decoration-color:rgba(185,28,28,.5);text-decoration-thickness:2px}
+  .card.demounted .loc-block{opacity:.85;filter:grayscale(.4)}
+
+  .demo-badge{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;
+    background:var(--demo-bg);color:var(--demo);border:1px solid var(--demo-border);
+    text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;
+  }
+  .demo-badge::before{content:"⛔";font-size:13px}
+
+  /* ---------- Блоки расположения ---------- */
   .loc-block{background:var(--loc-bg);border:1px solid var(--loc-border);
        border-radius:10px;padding:10px 12px;margin-bottom:10px}
   .loc-block:last-child{margin-bottom:0}
@@ -51,7 +72,8 @@
   .extra{margin-top:8px;font-size:13px;color:#374151}
   .extra .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.04em;
        color:var(--muted);margin-bottom:1px}
-  /* Бейджи доступа */
+
+  /* ---------- Бейджи доступа ---------- */
   .access-new, .access-old{
     display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;
     font-weight:700;letter-spacing:.03em;margin-right:6px;text-transform:uppercase;
@@ -59,6 +81,7 @@
   }
   .access-new{background:var(--new-bg);color:var(--new);border:1px solid #a7f3d0}
   .access-old{background:var(--old-bg);color:var(--old);border:1px solid #fde68a}
+
   .no-results{padding:24px;text-align:center;color:var(--muted);background:#fff;
        border:1px dashed var(--border);border-radius:12px}
   .err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;
@@ -110,7 +133,9 @@ const $loading = document.getElementById('loading');
     const res = await fetch(EXCEL_FILE, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status + ' — файл «' + EXCEL_FILE + '» не найден.');
     const buf = await res.arrayBuffer();
-    const wb  = XLSX.read(buf, { type: 'array', cellDates: true });
+
+    /* ВАЖНО: cellStyles:true — иначе SheetJS не вернёт цвета заливки */
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true, cellStyles: true });
 
     RECORDS = buildRecords(wb);
     if (RECORDS.length === 0) throw new Error('В файле не найдено ни одной записи с адресом.');
@@ -128,6 +153,88 @@ const $loading = document.getElementById('loading');
     $error.style.display = 'block';
   }
 })();
+
+/* ============================================================
+   ЦВЕТА: определение «красной» заливки
+   ============================================================ */
+/* Преобразуем цвет вида "#RRGGBB", "RRGGBB", "rgb(r,g,b)" в {r,g,b} */
+function parseColor(v){
+  if (!v) return null;
+  let s = String(v).trim().toLowerCase();
+
+  // "#rrggbb" / "rrggbb"
+  let m = s.match(/^#?([0-9a-f]{6})$/);
+  if (m){
+    const hex = m[1];
+    return {
+      r: parseInt(hex.slice(0,2),16),
+      g: parseInt(hex.slice(2,4),16),
+      b: parseInt(hex.slice(4,6),16),
+    };
+  }
+  // "#rgb"
+  m = s.match(/^#?([0-9a-f]{3})$/);
+  if (m){
+    const h = m[1];
+    return {
+      r: parseInt(h[0]+h[0],16),
+      g: parseInt(h[1]+h[1],16),
+      b: parseInt(h[2]+h[2],16),
+    };
+  }
+  // "rgb(r,g,b)"
+  m = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (m){
+    return { r:+m[1], g:+m[2], b:+m[3] };
+  }
+  return null;
+}
+
+/* «Красный ли?» — допускаем разные оттенки:
+   ярко-красный (FF0000), тёмно-красный (C00000),
+   бледно-красный (FFC7CE — «плохой» стиль Excel),
+   кирпичный и т.п.
+   Правило: R заметно больше G и B. */
+function isReddish(rgb){
+  if (!rgb) return false;
+  const {r,g,b} = rgb;
+  // насыщенный красный: R высокий, G и B низкие
+  if (r > 150 && g < 100 && b < 100) return true;
+  // бледно-красный (FFC7CE): R высокий, G и B чуть ниже R, но заметно
+  if (r > 200 && g < 210 && b < 210 && (r - g) > 40 && (r - b) > 40) return true;
+  // общее правило
+  if (r > 120 && (r - g) > 50 && (r - b) > 50) return true;
+  return false;
+}
+
+/* Получить цвет заливки ячейки (r,c) из листа ws.
+   SheetJS при cellStyles:true кладёт стиль в ws[r][c].s.fgColor / bgColor.
+   Возможны разные варианты структуры — перебираем известные. */
+function getCellFill(ws, r, c){
+  if (!ws || !ws['!ref']) return null;
+  const addr = XLSX.utils.encode_cell({ r, c });
+  const cell = ws[addr];
+  if (!cell || !cell.s) return null;
+  const s = cell.s;
+
+  // Возможные места хранения цвета заливки
+  const candidates = [
+    s.fgColor, s.bgColor,
+    s.fill && s.fill.fgColor,
+    s.fill && s.fill.bgColor,
+    s.fill && s.fill.patternType && s.fill.fgColor,
+  ].filter(Boolean);
+
+  for (const col of candidates){
+    if (typeof col === 'object'){
+      if (col.rgb) { const rgb = parseColor(col.rgb); if (rgb) return rgb; }
+      if (col.theme !== undefined) continue; // тема — не наш случай
+    } else if (typeof col === 'string'){
+      const rgb = parseColor(col); if (rgb) return rgb;
+    }
+  }
+  return null;
+}
 
 /* ============================================================
    РАЗБОР ЛИСТА
@@ -177,22 +284,13 @@ function detectColumns(rows, sheetName){
     colComm = find(['коммутатор', '№ ком', 'инв']);
   }
 
-  /* ---------- Столбцы «Доступ к оборудованию» ----------
-     Ищем ВСЕ столбцы, в заголовке которых есть «доступ».
-     Для листа «Девятовка» (или любого другого) может быть 1 или 2 таких столбца:
-       • если в заголовке есть «верный» → это «новый» доступ
-       • иначе                          → это «старый» доступ
-     Если столбец один — он считается «обычным» (без пометки).
-     ---------------------------------------------------- */
+  // Столбцы «Доступ к оборудованию»
   const accessIdxes = [];
   header.forEach((h, i) => {
     if (h.includes('доступ')) accessIdxes.push({ idx: i, header: h });
   });
 
-  let colAccessNew = -1;  // "Доступ к оборудованию Верный" → новый
-  let colAccessOld = -1;  // "Доступ к оборудованию"        → старый
-  let colAccessPlain = -1;// единственный столбец без пары
-
+  let colAccessNew = -1, colAccessOld = -1, colAccessPlain = -1;
   if (accessIdxes.length === 1){
     colAccessPlain = accessIdxes[0].idx;
   } else if (accessIdxes.length >= 2){
@@ -203,7 +301,6 @@ function detectColumns(rows, sheetName){
         if (colAccessOld < 0) colAccessOld = a.idx;
       }
     }
-    // Если «верного» не нашлось, но столбцов ≥2 — первый считаем старым, второй новым
     if (colAccessNew < 0 && colAccessOld < 0){
       colAccessOld = accessIdxes[0].idx;
       colAccessNew = accessIdxes[1].idx;
@@ -218,14 +315,12 @@ function detectColumns(rows, sheetName){
     colEquip,
     colComm,
     colEth:    find(KEYS.eth),
-    colAccessNew,
-    colAccessOld,
-    colAccessPlain,
+    colAccessNew, colAccessOld, colAccessPlain,
   };
 }
 
 /* ============================================================
-   ИЗВЛЕЧЕНИЕ С НАСЛЕДОВАНИЕМ РАСПОЛОЖЕНИЯ
+   ИЗВЛЕЧЕНИЕ С НАСЛЕДОВАНИЕМ РАСПОЛОЖЕНИЯ И ДЕТЕКЦИЕЙ ДЕМОНТАЖА
    ============================================================ */
 function extractSheet(name, ws){
   const rows = sheetToRows(ws);
@@ -259,9 +354,15 @@ function extractSheet(name, ws){
     else loc = loc1 || loc2;
 
     if (addr){
+      /* Проверяем цвет заливки ячейки с адресом.
+         Номер строки в файле = i + 1 (SheetJS считает строки с 0). */
+      const fill = getCellFill(ws, i, c.colAddr);
+      const demounted = isReddish(fill);
+
       current = {
         addr,
         sheet: name,
+        demounted,
         blocks: [],
         ethParts: [],
         accessNewParts: [],
@@ -275,7 +376,6 @@ function extractSheet(name, ws){
     if (!current) continue;
 
     if (loc) currentLoc = loc;
-
     const targetLoc = loc || currentLoc;
 
     if (equip || comm){
@@ -285,8 +385,6 @@ function extractSheet(name, ws){
     }
 
     if (eth) pushUnique(current.ethParts, eth);
-
-    // Доступы: каждый в свой список
     if (accessNew)   pushUnique(current.accessNewParts,   accessNew);
     if (accessOld)   pushUnique(current.accessOldParts,   accessOld);
     if (accessPlain) pushUnique(current.accessPlainParts, accessPlain);
@@ -303,6 +401,7 @@ function extractSheet(name, ws){
     return {
       addr:   r.addr,
       sheet:  r.sheet,
+      demounted: r.demounted,
       blocks: blocks.length ? blocks : r.blocks,
       eth:    r.ethParts.join('; '),
       accessNew:   r.accessNewParts.join('; '),
@@ -314,10 +413,7 @@ function extractSheet(name, ws){
 
 function ensureBlock(rec, loc){
   let b = rec.blocks.find(x => x.loc === loc);
-  if (!b){
-    b = { loc, items: [] };
-    rec.blocks.push(b);
-  }
+  if (!b){ b = { loc, items: [] }; rec.blocks.push(b); }
   return b;
 }
 
@@ -408,7 +504,6 @@ function renderBlock(block){
          '</div>';
 }
 
-/* Блок «Доступ к оборудованию» с бейджем «новый»/«старый» */
 function renderAccess(label, value, kind){
   if (!value) return '';
   const badge = kind === 'new'
@@ -441,9 +536,6 @@ function render(list, query){
       extra.push('<div class="extra"><div class="lbl">Ящики Ethernet</div>' + esc(rec.eth) + '</div>');
     }
 
-    /* Особый случай: лист «Девятовка» — два столбца доступа.
-       Если хотя бы один из «новый/старый» заполнен — выводим их
-       с пометками. Иначе — обычный одиночный доступ (если есть). */
     if (rec.accessNew || rec.accessOld){
       extra.push(renderAccess('Доступ к оборудованию', rec.accessNew, 'new'));
       extra.push(renderAccess('Доступ к оборудованию', rec.accessOld, 'old'));
@@ -451,8 +543,15 @@ function render(list, query){
       extra.push(renderAccess('Доступ к оборудованию', rec.accessPlain, 'plain'));
     }
 
-    return '<div class="card">' +
-      '<h3>' + esc(rec.addr) + '</h3>' +
+    const demoBadge = rec.demounted
+      ? '<span class="demo-badge">Оборудование демонтировано</span>'
+      : '';
+
+    return '<div class="card' + (rec.demounted ? ' demounted' : '') + '">' +
+      '<div class="card-head">' +
+        '<h3>' + esc(rec.addr) + '</h3>' +
+        demoBadge +
+      '</div>' +
       '<div class="sheet">Лист: ' + esc(rec.sheet) + '</div>' +
       blocksHtml +
       extra.join('') +
