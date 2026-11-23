@@ -44,7 +44,6 @@
        padding:6px 0;border-top:1px dashed #d7dde5;font-size:14px}
   .equip-row:first-of-type{border-top:0}
   .equip-row .eq-name{font-weight:600;color:#1f2933;word-break:break-word}
-  .equip-row .eq-meta{font-size:12px;color:var(--muted);margin-top:2px}
   .comm-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;
        background:#e0e7ff;color:#3730a3;font-weight:600;white-space:nowrap;align-self:start}
   .extra{margin-top:8px;font-size:13px;color:#374151}
@@ -127,7 +126,6 @@ function sheetToRows(ws){
   return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
 }
 
-/* Определяем строку заголовков и индексы нужных колонок */
 function detectColumns(rows){
   const KEYS = {
     addr:   ['улица', 'адрес'],
@@ -155,18 +153,14 @@ function detectColumns(rows){
   const header = best.header;
   const find = (kwList) => header.findIndex(h => kwList.some(kw => h.includes(kw)));
 
-  // Все столбцы «Расположение»
   const locIdxes = [];
   header.forEach((h, i) => {
     if (h.includes('раположение') || h.includes('расположение')) locIdxes.push(i);
   });
 
-  // Столбец «Оборудование»
   const colEquip = find(KEYS.equip);
 
-  /* № коммутатора — столбец СРАЗУ ПОСЛЕ «Оборудование».
-     Именно так в вашем файле: ОБОРУДОВАНИЕ → Инв.№ / № КОМ
-     Если столбец «Оборудование» не найден — ищем по ключевым словам. */
+  // № коммутатора — столбец СРАЗУ ПОСЛЕ «Оборудование»
   let colComm = -1;
   if (colEquip >= 0 && colEquip + 1 < header.length){
     colComm = colEquip + 1;
@@ -187,11 +181,16 @@ function detectColumns(rows){
 }
 
 /* ============================================================
-   ИЗВЛЕЧЕНИЕ ЗАПИСЕЙ ИЗ ЛИСТА
-   Каждая строка с адресом — новая «запись дома».
-   Внутри записи собираем массив блоков:
-   { loc: 'расположение', equip: 'оборудование', comm: '№', eth, access }
-   Строки без адреса приклеиваются к текущему дому.
+   ИЗВЛЕЧЕНИЕ С НАСЛЕДОВАНИЕМ РАСПОЛОЖЕНИЯ
+   ------------------------------------------------------------
+   Идём по строкам сверху вниз и держим «состояние»:
+     currentAddr  — последний встреченный адрес
+     currentLoc   — последнее встреченное расположение
+   Правила:
+     • адрес непустой → новая карточка дома, сброс currentLoc.
+     • адрес пустой, расположение непустое → обновляем currentLoc.
+     • адрес пустой, расположение пустое, но есть оборудование/№ →
+       оборудование относится к currentLoc (наследование).
    ============================================================ */
 function extractSheet(name, ws){
   const rows = sheetToRows(ws);
@@ -201,79 +200,99 @@ function extractSheet(name, ws){
   if (c.colAddr < 0) return [];
 
   const out = [];
-  let current = null;
+  let current = null;   // текущая карточка дома
+  let currentLoc = '';  // последнее непустое расположение
 
   const get = (row, idx) => (idx >= 0 && idx < row.length) ? String(row[idx] ?? '').trim() : '';
 
   for (let i = c.headerIdx + 1; i < rows.length; i++){
     const row = rows[i];
-    const addr = get(row, c.colAddr);
 
-    if (addr){
-      current = {
-        addr,
-        sheet: name,
-        blocks: [],          // блоки «расположение → оборудование → коммутатор»
-        ethParts: [],        // ящики Ethernet (на уровень дома)
-        accessParts: [],     // доступ (на уровень дома)
-      };
-      out.push(current);
-    }
-
-    if (!current) continue;
-
-    // собираем данные из строки
-    const loc1 = get(row, c.colLoc1);
-    const loc2 = get(row, c.colLoc2);
-    let loc = '';
-    if (loc1 && loc2) loc = loc1 + ' · ' + loc2;
-    else loc = loc1 || loc2;
-
+    const addr  = get(row, c.colAddr);
+    const loc1  = get(row, c.colLoc1);
+    const loc2  = get(row, c.colLoc2);
     const equip = get(row, c.colEquip);
     const comm  = get(row, c.colComm);
     const eth   = get(row, c.colEth);
     const access= get(row, c.colAccess);
 
-    // блок «расположение → оборудование → коммутатор» добавляем,
-    // если есть хотя бы что-то из этих трёх полей
-    if (loc || equip || comm){
-      current.blocks.push({
-        loc: loc || 'Расположение не указано',
-        equip: equip || '',
-        comm: comm || '',
-      });
+    // Собираем расположение из двух возможных столбцов
+    let loc = '';
+    if (loc1 && loc2) loc = loc1 + ' · ' + loc2;
+    else loc = loc1 || loc2;
+
+    // 1) Новый дом
+    if (addr){
+      current = {
+        addr,
+        sheet: name,
+        blocks: [],       // [{ loc, items:[{equip,comm}] }]
+        ethParts: [],
+        accessParts: [],
+      };
+      out.push(current);
+      currentLoc = '';    // сбрасываем наследование для нового дома
+    }
+
+    if (!current) continue;   // строки до первого адреса пропускаем
+
+    // 2) Обновляем текущее расположение, если оно указано
+    if (loc) currentLoc = loc;
+
+    // 3) Определяем, к какому расположению отнести оборудование
+    const targetLoc = loc || currentLoc;
+
+    // 4) Если в строке есть оборудование или № коммутатора — добавляем в блок
+    if (equip || comm){
+      addEquip(current, targetLoc || 'Расположение не указано', equip, comm);
+    } else if (targetLoc){
+      // Строка без оборудования, но с расположением — создаём пустой блок-заголовок,
+      // чтобы было видно, что такое место существует (без оборудования).
+      // Но если блок уже есть — не дублируем.
+      ensureBlock(current, targetLoc);
     }
 
     if (eth)    pushUnique(current.ethParts, eth);
     if (access) pushUnique(current.accessParts, access);
   }
 
-  // Пост-обработка: объединяем блоки с одинаковым расположением
-  return out.map(r => ({
-    addr:   r.addr,
-    sheet:  r.sheet,
-    blocks: mergeBlocks(r.blocks),
-    eth:    r.ethParts.join('; '),
-    access: r.accessParts.join('; '),
-  }));
+  // Пост-обработка: убираем пустые блоки (без оборудования),
+  // кроме случаев, когда во всём доме нет ни одного оборудования —
+  // тогда оставляем хотя бы расположения.
+  return out.map(r => {
+    const blocks = r.blocks
+      .map(b => ({
+        loc: b.loc,
+        items: b.items.filter(it => it.equip || it.comm),
+      }))
+      .filter(b => b.items.length > 0 || b.isPlaceholder);
+
+    return {
+      addr:   r.addr,
+      sheet:  r.sheet,
+      blocks: blocks.length ? blocks : r.blocks,
+      eth:    r.ethParts.join('; '),
+      access: r.accessParts.join('; '),
+    };
+  });
 }
 
-/* Объединяем блоки, у которых одинаковое расположение:
-   оборудование и коммутатор складываем в один блок. */
-function mergeBlocks(blocks){
-  const map = new Map();
-  for (const b of blocks){
-    const key = b.loc;
-    if (!map.has(key)) map.set(key, { loc: key, items: [] });
-
-    // Если оборудование или коммутатор пустые — пропускаем пустую пару,
-    // но если есть хотя бы один из них, добавляем.
-    if (b.equip || b.comm){
-      map.get(key).items.push({ equip: b.equip, comm: b.comm });
-    }
+/* Найти или создать блок по расположению */
+function ensureBlock(rec, loc){
+  let b = rec.blocks.find(x => x.loc === loc);
+  if (!b){
+    b = { loc, items: [] };
+    rec.blocks.push(b);
   }
-  // Чистим пустые блоки (без оборудования и коммутатора)
-  return [...map.values()].filter(b => b.items.length > 0);
+  return b;
+}
+
+/* Добавить оборудование в блок расположения */
+function addEquip(rec, loc, equip, comm){
+  const b = ensureBlock(rec, loc);
+  // если такая же пара уже есть — не дублируем
+  const dup = b.items.some(it => it.equip === equip && it.comm === comm);
+  if (!dup) b.items.push({ equip, comm });
 }
 
 function pushUnique(arr, v){
@@ -283,7 +302,7 @@ function pushUnique(arr, v){
 }
 
 /* ============================================================
-   СБОРКА ЗАПИСЕЙ ПО ВСЕМ ЛИСТАМ
+   СБОРКА ПО ВСЕМ ЛИСТАМ
    ============================================================ */
 function buildRecords(wb){
   const records = [];
@@ -291,8 +310,7 @@ function buildRecords(wb){
     const ws = wb.Sheets[name];
     if (!ws) continue;
     try {
-      const recs = extractSheet(name, ws);
-      records.push(...recs);
+      records.push(...extractSheet(name, ws));
     } catch (e){
       console.warn('Лист не обработан:', name, e);
     }
@@ -341,23 +359,20 @@ function esc(s){
 }
 
 function renderBlock(block){
-  // Внутри одного расположения может быть несколько единиц оборудования
   const items = block.items.map(it => {
     const name = it.equip ? esc(it.equip) : '<span style="color:#9aa3ad">—</span>';
     const commBadge = it.comm
       ? '<span class="comm-badge" title="№ коммутатора">№ ' + esc(it.comm) + '</span>'
       : '';
     return '<div class="equip-row">' +
-             '<div>' +
-               '<div class="eq-name">' + name + '</div>' +
-             '</div>' +
+             '<div class="eq-name">' + name + '</div>' +
              '<div>' + commBadge + '</div>' +
            '</div>';
   }).join('');
 
   return '<div class="loc-block">' +
            '<div class="loc-title">' + esc(block.loc) + '</div>' +
-           items +
+           (items || '<div class="equip-row" style="color:#9aa3ad">Оборудование не указано</div>') +
          '</div>';
 }
 
@@ -373,7 +388,7 @@ function render(list, query){
   $results.innerHTML = list.map(rec => {
     const blocksHtml = rec.blocks.length
       ? rec.blocks.map(renderBlock).join('')
-      : '<div class="loc-block" style="color:#9aa3ad">Оборудование не указано</div>';
+      : '<div class="loc-block" style="color:#9aa3ad">Расположение не указано</div>';
 
     const extra = [];
     if (rec.eth){
