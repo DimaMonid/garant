@@ -9,6 +9,7 @@
   :root{
     --bg:#f4f6f9; --card:#fff; --border:#dfe3e8; --text:#1f2933;
     --muted:#6b7280; --accent:#2563eb; --accent-soft:#e8f0fe;
+    --loc-bg:#f1f5f9; --loc-border:#cbd5e1;
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
@@ -16,7 +17,7 @@
   header{background:#0f172a;color:#fff;padding:20px 24px}
   header h1{margin:0;font-size:20px;font-weight:600}
   header p{margin:4px 0 0;font-size:13px;color:#cbd5e1}
-  .wrap{max-width:1200px;margin:0 auto;padding:20px 24px 60px}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px 24px 60px}
   .searchbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
   .searchbar input{flex:1;min-width:240px;padding:12px 14px;font-size:16px;
        border:1px solid var(--border);border-radius:10px;background:#fff;outline:none}
@@ -30,15 +31,25 @@
   .status{font-size:14px;color:var(--muted);margin:10px 0 16px}
   .status b{color:var(--text)}
   .card{background:var(--card);border:1px solid var(--border);border-radius:12px;
-        padding:16px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
-  .card h3{margin:0 0 4px;font-size:16px;color:var(--accent)}
-  .card .sheet{font-size:12px;color:var(--muted);margin-bottom:10px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 18px}
-  .field{font-size:14px}
-  .field .label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;
-       color:var(--muted);margin-bottom:2px}
-  .field .value{font-weight:500;word-break:break-word}
-  .field .value.empty{color:#9aa3ad;font-weight:400;font-style:italic}
+        padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .card h3{margin:0 0 2px;font-size:17px;color:var(--accent)}
+  .card .sheet{font-size:12px;color:var(--muted);margin-bottom:12px}
+  .loc-block{background:var(--loc-bg);border:1px solid var(--loc-border);
+       border-radius:10px;padding:10px 12px;margin-bottom:10px}
+  .loc-block:last-child{margin-bottom:0}
+  .loc-block .loc-title{font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;
+       display:flex;align-items:center;gap:6px}
+  .loc-block .loc-title::before{content:"📍";font-size:13px}
+  .equip-row{display:grid;grid-template-columns:1fr auto;gap:8px 14px;
+       padding:6px 0;border-top:1px dashed #d7dde5;font-size:14px}
+  .equip-row:first-of-type{border-top:0}
+  .equip-row .eq-name{font-weight:600;color:#1f2933;word-break:break-word}
+  .equip-row .eq-meta{font-size:12px;color:var(--muted);margin-top:2px}
+  .comm-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;
+       background:#e0e7ff;color:#3730a3;font-weight:600;white-space:nowrap;align-self:start}
+  .extra{margin-top:8px;font-size:13px;color:#374151}
+  .extra .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+       color:var(--muted);margin-bottom:1px}
   .no-results{padding:24px;text-align:center;color:var(--muted);background:#fff;
        border:1px dashed var(--border);border-radius:12px}
   .err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;
@@ -51,7 +62,7 @@
 <body>
 <header>
   <h1>Поиск оборудования по адресу</h1>
-  <p>Данные подтягиваются из файла Excel, лежащего рядом с этой страницей</p>
+  <p>Данные читаются из Excel-файла (все листы) рядом с этой страницей</p>
 </header>
 
 <div class="wrap">
@@ -73,7 +84,6 @@
 <script>
 /* ============================================================
    Имя Excel-файла в корне репозитория (рядом с index.html).
-   Если переименуете файл — поменяйте строку ниже.
    ============================================================ */
 const EXCEL_FILE = 'data.xlsx';
 
@@ -89,76 +99,107 @@ const $loading = document.getElementById('loading');
 (async function init(){
   try {
     const res = await fetch(EXCEL_FILE, { cache: 'no-store' });
-    if (!res.ok) {
-      throw new Error('HTTP ' + res.status + ' — файл «' + EXCEL_FILE + '» не найден рядом с index.html.');
-    }
+    if (!res.ok) throw new Error('HTTP ' + res.status + ' — файл «' + EXCEL_FILE + '» не найден.');
     const buf = await res.arrayBuffer();
     const wb  = XLSX.read(buf, { type: 'array', cellDates: true });
 
     RECORDS = buildRecords(wb);
-    if (RECORDS.length === 0) {
-      throw new Error('В файле не найдено распознаваемых строк. Проверьте листы «ФОЛЮШ», «Ант», «Спецвидеосервис» и адреса в столбце A.');
-    }
+    if (RECORDS.length === 0) throw new Error('В файле не найдено ни одной записи с адресом.');
 
     $loading.style.display = 'none';
     $q.disabled = false;
     $btn.disabled = false;
     $q.focus();
-    $status.innerHTML = 'Загружено записей: <b>' + RECORDS.length + '</b>';
+    $status.innerHTML = 'Загружено записей: <b>' + RECORDS.length + '</b> из ' +
+                        wb.SheetNames.length + ' листов';
   } catch (err) {
     console.error(err);
     $loading.style.display = 'none';
-    showError(
-      'Не удалось загрузить данные: ' + (err.message || err) +
-      ' Убедитесь, что файл «' + EXCEL_FILE + '» лежит в корне репозитория рядом с index.html.'
-    );
+    $error.textContent = 'Не удалось загрузить данные: ' + (err.message || err);
+    $error.style.display = 'block';
   }
 })();
 
-/* ---------- Чтение листов ---------- */
+/* ============================================================
+   РАЗБОР ЛИСТА
+   ============================================================ */
 function sheetToRows(ws){
   return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
 }
 
+/* Определяем строку заголовков и индексы нужных колонок */
 function detectColumns(rows){
-  let headerIdx = -1;
-  for (let i = 0; i < Math.min(6, rows.length); i++){
-    const r = rows[i].map(v => String(v).toLowerCase());
-    if (r.some(v => v.includes('улица')) || r.some(v => v.includes('адрес'))){
-      headerIdx = i; break;
-    }
-  }
-  if (headerIdx === -1) headerIdx = 0;
-
-  const header = rows[headerIdx].map(v => String(v).toLowerCase());
-  const find = (kw) => header.findIndex(h => h.includes(kw));
-  const findLoc = () => {
-    const a = find('раположение'); return a >= 0 ? a : find('расположение');
+  const KEYS = {
+    addr:   ['улица', 'адрес'],
+    loc:    ['раположение', 'расположение'],
+    equip:  ['оборудование', 'оборуд'],
+    eth:    ['ethernet', 'ящики'],
+    access: ['доступ'],
   };
-  const firstLoc = findLoc();
-  let secondLoc = -1;
-  if (firstLoc >= 0){
-    for (let i = firstLoc + 1; i < header.length; i++){
-      if (header[i].includes('раположение') || header[i].includes('расположение')){ secondLoc = i; break; }
+
+  let best = { idx: -1, score: 0, header: [] };
+  for (let i = 0; i < Math.min(10, rows.length); i++){
+    const header = rows[i].map(v => String(v).toLowerCase().trim());
+    let score = 0;
+    for (const k of Object.keys(KEYS)){
+      if (header.some(h => KEYS[k].some(kw => h.includes(kw)))) score++;
     }
+    if (header.some(h => h.includes('улица') || h.includes('адрес'))) score += 2;
+    if (score > best.score) best = { idx: i, score, header };
   }
+  if (best.idx === -1){
+    best.idx = 0;
+    best.header = (rows[0] || []).map(v => String(v).toLowerCase().trim());
+  }
+
+  const header = best.header;
+  const find = (kwList) => header.findIndex(h => kwList.some(kw => h.includes(kw)));
+
+  // Все столбцы «Расположение»
+  const locIdxes = [];
+  header.forEach((h, i) => {
+    if (h.includes('раположение') || h.includes('расположение')) locIdxes.push(i);
+  });
+
+  // Столбец «Оборудование»
+  const colEquip = find(KEYS.equip);
+
+  /* № коммутатора — столбец СРАЗУ ПОСЛЕ «Оборудование».
+     Именно так в вашем файле: ОБОРУДОВАНИЕ → Инв.№ / № КОМ
+     Если столбец «Оборудование» не найден — ищем по ключевым словам. */
+  let colComm = -1;
+  if (colEquip >= 0 && colEquip + 1 < header.length){
+    colComm = colEquip + 1;
+  } else {
+    colComm = find(['коммутатор', '№ ком', 'инв']);
+  }
+
   return {
-    headerIdx,
-    colAddr:   Math.max(0, find('улица') >= 0 ? find('улица') : find('адрес')),
-    colLoc1:   firstLoc,
-    colLoc2:   secondLoc,
-    colEquip:  find('оборудование') >= 0 ? find('оборудование') : find('оборуд'),
-    colEth:    find('ethernet') >= 0 ? find('ethernet') : find('ящики'),
-    colComm:   find('коммутатор') >= 0 ? find('коммутатор') : find('№ ком'),
-    colAccess: find('доступ') >= 0 ? find('доступ') : -1,
+    headerIdx: best.idx,
+    colAddr:   find(KEYS.addr),
+    colLoc1:   locIdxes[0] ?? -1,
+    colLoc2:   locIdxes[1] ?? -1,
+    colEquip,
+    colComm,
+    colEth:    find(KEYS.eth),
+    colAccess: find(KEYS.access),
   };
 }
 
+/* ============================================================
+   ИЗВЛЕЧЕНИЕ ЗАПИСЕЙ ИЗ ЛИСТА
+   Каждая строка с адресом — новая «запись дома».
+   Внутри записи собираем массив блоков:
+   { loc: 'расположение', equip: 'оборудование', comm: '№', eth, access }
+   Строки без адреса приклеиваются к текущему дому.
+   ============================================================ */
 function extractSheet(name, ws){
   const rows = sheetToRows(ws);
   if (rows.length === 0) return [];
 
   const c = detectColumns(rows);
+  if (c.colAddr < 0) return [];
+
   const out = [];
   let current = null;
 
@@ -167,66 +208,101 @@ function extractSheet(name, ws){
   for (let i = c.headerIdx + 1; i < rows.length; i++){
     const row = rows[i];
     const addr = get(row, c.colAddr);
+
     if (addr){
-      current = { addr, sheet: name, locParts: [], equipParts: [], ethParts: [], commParts: [], accessParts: [] };
+      current = {
+        addr,
+        sheet: name,
+        blocks: [],          // блоки «расположение → оборудование → коммутатор»
+        ethParts: [],        // ящики Ethernet (на уровень дома)
+        accessParts: [],     // доступ (на уровень дома)
+      };
       out.push(current);
-      pushParts(current, row, c);
-    } else if (current){
-      pushParts(current, row, c);
     }
+
+    if (!current) continue;
+
+    // собираем данные из строки
+    const loc1 = get(row, c.colLoc1);
+    const loc2 = get(row, c.colLoc2);
+    let loc = '';
+    if (loc1 && loc2) loc = loc1 + ' · ' + loc2;
+    else loc = loc1 || loc2;
+
+    const equip = get(row, c.colEquip);
+    const comm  = get(row, c.colComm);
+    const eth   = get(row, c.colEth);
+    const access= get(row, c.colAccess);
+
+    // блок «расположение → оборудование → коммутатор» добавляем,
+    // если есть хотя бы что-то из этих трёх полей
+    if (loc || equip || comm){
+      current.blocks.push({
+        loc: loc || 'Расположение не указано',
+        equip: equip || '',
+        comm: comm || '',
+      });
+    }
+
+    if (eth)    pushUnique(current.ethParts, eth);
+    if (access) pushUnique(current.accessParts, access);
   }
 
+  // Пост-обработка: объединяем блоки с одинаковым расположением
   return out.map(r => ({
     addr:   r.addr,
     sheet:  r.sheet,
-    loc:    uniqJoin(r.locParts),
-    equip:  uniqJoin(r.equipParts),
-    eth:    uniqJoin(r.ethParts),
-    comm:   uniqJoin(r.commParts),
-    access: uniqJoin(r.accessParts),
+    blocks: mergeBlocks(r.blocks),
+    eth:    r.ethParts.join('; '),
+    access: r.accessParts.join('; '),
   }));
 }
 
-function pushParts(rec, row, c){
-  const get = (idx) => (idx >= 0 && idx < row.length) ? String(row[idx] ?? '').trim() : '';
-  const loc1 = get(c.colLoc1), loc2 = get(c.colLoc2);
-  let loc = '';
-  if (loc1 && loc2) loc = loc1 + ' — ' + loc2;
-  else loc = loc1 || loc2;
+/* Объединяем блоки, у которых одинаковое расположение:
+   оборудование и коммутатор складываем в один блок. */
+function mergeBlocks(blocks){
+  const map = new Map();
+  for (const b of blocks){
+    const key = b.loc;
+    if (!map.has(key)) map.set(key, { loc: key, items: [] });
 
-  pushIf(rec.locParts,    loc);
-  pushIf(rec.equipParts,  get(c.colEquip));
-  pushIf(rec.ethParts,    get(c.colEth));
-  pushIf(rec.commParts,   get(c.colComm));
-  pushIf(rec.accessParts, get(c.colAccess));
+    // Если оборудование или коммутатор пустые — пропускаем пустую пару,
+    // но если есть хотя бы один из них, добавляем.
+    if (b.equip || b.comm){
+      map.get(key).items.push({ equip: b.equip, comm: b.comm });
+    }
+  }
+  // Чистим пустые блоки (без оборудования и коммутатора)
+  return [...map.values()].filter(b => b.items.length > 0);
 }
 
-function pushIf(arr, v){
+function pushUnique(arr, v){
   v = String(v ?? '').trim();
   if (!v) return;
   if (!arr.includes(v)) arr.push(v);
 }
 
-function uniqJoin(arr){ return arr.join('; '); }
-
+/* ============================================================
+   СБОРКА ЗАПИСЕЙ ПО ВСЕМ ЛИСТАМ
+   ============================================================ */
 function buildRecords(wb){
-  const wanted = ['ФОЛЮШ', 'Ант', 'Спецвидеосервис'];
-  const result = [];
+  const records = [];
   for (const name of wb.SheetNames){
-    const match = wanted.find(w =>
-      name.toLowerCase().includes(w.toLowerCase()) ||
-      w.toLowerCase().includes(name.toLowerCase())
-    );
-    if (!match) continue;
     const ws = wb.Sheets[name];
     if (!ws) continue;
-    try { result.push(...extractSheet(name, ws)); }
-    catch (e){ console.warn('Лист не обработан:', name, e); }
+    try {
+      const recs = extractSheet(name, ws);
+      records.push(...recs);
+    } catch (e){
+      console.warn('Лист не обработан:', name, e);
+    }
   }
-  return result;
+  return records;
 }
 
-/* ---------- Поиск ---------- */
+/* ============================================================
+   ПОИСК
+   ============================================================ */
 function norm(s){
   return String(s || '')
     .toLowerCase()
@@ -255,17 +331,34 @@ function search(query){
   });
 }
 
+/* ============================================================
+   ОТРИСОВКА
+   ============================================================ */
 function esc(s){
   return String(s || '').replace(/[&<>"']/g, c => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[c]));
 }
 
-function field(label, value){
-  const v = (value === undefined || value === null || String(value).trim() === '')
-    ? '<span class="value empty">—</span>'
-    : '<span class="value">' + esc(value) + '</span>';
-  return '<div class="field"><div class="label">' + esc(label) + '</div>' + v + '</div>';
+function renderBlock(block){
+  // Внутри одного расположения может быть несколько единиц оборудования
+  const items = block.items.map(it => {
+    const name = it.equip ? esc(it.equip) : '<span style="color:#9aa3ad">—</span>';
+    const commBadge = it.comm
+      ? '<span class="comm-badge" title="№ коммутатора">№ ' + esc(it.comm) + '</span>'
+      : '';
+    return '<div class="equip-row">' +
+             '<div>' +
+               '<div class="eq-name">' + name + '</div>' +
+             '</div>' +
+             '<div>' + commBadge + '</div>' +
+           '</div>';
+  }).join('');
+
+  return '<div class="loc-block">' +
+           '<div class="loc-title">' + esc(block.loc) + '</div>' +
+           items +
+         '</div>';
 }
 
 function render(list, query){
@@ -276,19 +369,27 @@ function render(list, query){
     return;
   }
   $status.innerHTML = 'Найдено записей: <b>' + list.length + '</b> по запросу «' + esc(query) + '»';
-  $results.innerHTML = list.map(rec =>
-    '<div class="card">' +
+
+  $results.innerHTML = list.map(rec => {
+    const blocksHtml = rec.blocks.length
+      ? rec.blocks.map(renderBlock).join('')
+      : '<div class="loc-block" style="color:#9aa3ad">Оборудование не указано</div>';
+
+    const extra = [];
+    if (rec.eth){
+      extra.push('<div class="extra"><div class="lbl">Ящики Ethernet</div>' + esc(rec.eth) + '</div>');
+    }
+    if (rec.access){
+      extra.push('<div class="extra"><div class="lbl">Доступ к оборудованию</div>' + esc(rec.access) + '</div>');
+    }
+
+    return '<div class="card">' +
       '<h3>' + esc(rec.addr) + '</h3>' +
       '<div class="sheet">Лист: ' + esc(rec.sheet) + '</div>' +
-      '<div class="grid">' +
-        field('Расположение оборудования', rec.loc) +
-        field('Название оборудования', rec.equip) +
-        field('Ящики Ethernet', rec.eth) +
-        field('№ коммутатора', rec.comm) +
-        field('Доступ к оборудованию', rec.access) +
-      '</div>' +
-    '</div>'
-  ).join('');
+      blocksHtml +
+      extra.join('') +
+    '</div>';
+  }).join('');
 }
 
 function doSearch(){
@@ -300,8 +401,6 @@ function doSearch(){
 $btn.addEventListener('click', doSearch);
 $q.addEventListener('input', doSearch);
 $q.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
-
-function showError(msg){ $error.textContent = msg; $error.style.display = 'block'; }
 </script>
 </body>
 </html>
