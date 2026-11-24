@@ -13,8 +13,6 @@
     --new:#047857; --new-bg:#ecfdf5;
     --old:#b45309; --old-bg:#fffbeb;
     --demo:#b91c1c; --demo-bg:#fef2f2; --demo-border:#fecaca;
-    --tv:#7c3aed; --tv-bg:#f5f3ff;
-    --sw:#0369a1; --sw-bg:#f0f9ff;
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
@@ -65,26 +63,19 @@
   }
   .demo-badge::before{content:"⛔";font-size:13px}
 
+  /* Блоки расположения и оборудование — как было до кнопки */
   .loc-block{background:var(--loc-bg);border:1px solid var(--loc-border);
        border-radius:10px;padding:10px 12px;margin-bottom:10px}
   .loc-block:last-child{margin-bottom:0}
   .loc-block .loc-title{font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;
        display:flex;align-items:center;gap:6px}
   .loc-block .loc-title::before{content:"📍";font-size:13px}
-
-  .equip-line{display:flex;align-items:flex-start;gap:10px;padding:6px 0;
-       border-top:1px dashed #d7dde5;font-size:14px}
-  .equip-line:first-of-type{border-top:0}
-  .equip-line .tag{flex:0 0 auto;min-width:86px;font-size:11px;font-weight:700;
-       text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:6px;
-       text-align:center;margin-top:1px}
-  .equip-line.tv .tag{background:var(--tv-bg);color:var(--tv);border:1px solid #ddd6fe}
-  .equip-line.sw .tag{background:var(--sw-bg);color:var(--sw);border:1px solid #bae6fd}
-  .equip-line .val{flex:1;font-weight:600;color:#1f2933;word-break:break-word}
-  .equip-line .val.empty{color:#9aa3ad;font-weight:400;font-style:italic}
+  .equip-row{display:grid;grid-template-columns:1fr auto;gap:8px 14px;
+       padding:6px 0;border-top:1px dashed #d7dde5;font-size:14px}
+  .equip-row:first-of-type{border-top:0}
+  .equip-row .eq-name{font-weight:600;color:#1f2933;word-break:break-word}
   .comm-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;
-       background:#e0e7ff;color:#3730a3;font-weight:600;white-space:nowrap;margin-left:6px}
-
+       background:#e0e7ff;color:#3730a3;font-weight:600;white-space:nowrap;align-self:start}
   .extra{margin-top:8px;font-size:13px;color:#374151}
   .extra .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.04em;
        color:var(--muted);margin-bottom:1px}
@@ -104,7 +95,7 @@
   .loading{background:#eef4ff;border:1px solid #c7d7fe;color:#1e40af;
        padding:12px 14px;border-radius:10px;margin-bottom:14px;font-size:14px}
 
-  /* Модальное окно */
+  /* Модальное окно «Внести изменения» */
   .modal-backdrop{
     position:fixed;inset:0;background:rgba(15,23,42,.55);
     display:none;align-items:flex-start;justify-content:center;
@@ -144,8 +135,6 @@
   @media (max-width:600px){
     .wrap{padding:14px}
     .modal .row2{grid-template-columns:1fr}
-    .equip-line{flex-direction:column;gap:2px}
-    .equip-line .tag{min-width:0;align-self:flex-start}
   }
 </style>
 </head>
@@ -175,7 +164,7 @@
   <div id="results"></div>
 </div>
 
-<!-- Модальное окно -->
+<!-- Модальное окно «Внести изменения» -->
 <div id="modal-backdrop" class="modal-backdrop" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <h2 id="modal-title">Внести изменения</h2>
@@ -188,7 +177,6 @@
       <label for="f-loc">Расположение оборудования</label>
       <input id="f-loc" name="loc" type="text" placeholder="например: 2 П · Черд">
 
-      <!-- Оборудование разделено на 2 строки: ТВ и Коммутатор -->
       <div class="row2">
         <div>
           <label for="f-tv">ТВ</label>
@@ -200,11 +188,9 @@
         </div>
       </div>
 
-      <!-- № коммутатора относится именно к строке «Коммутатор» -->
       <label for="f-comm">№ коммутатора <span style="font-weight:400;color:var(--muted)">(для указанного выше коммутатора)</span></label>
       <input id="f-comm" name="comm" type="text" placeholder="например: 229">
 
-      <!-- Новое поле: Ящики Ethernet -->
       <label for="f-box">Ящики Ethernet</label>
       <input id="f-box" name="box" type="text" placeholder="например: 3">
 
@@ -264,22 +250,7 @@ const $loading = document.getElementById('loading');
 })();
 
 /* ============================================================
-   КЛАССИФИКАЦИЯ: ТВ или Коммутатор
-   ============================================================ */
-const SWITCH_PATTERNS = [
-  'коммутатор', 'switch',
-  'snr-s', 'dcs', 'dcn', 'qsw', 'qsm', 'mes', 'eltex', 'procurve', 'cisco',
-  'tp-link', 'opti vector', 'bd203u', 'wr1001', 'wr100j', 'wrj1001',
-  'sdo', 'sdo3000', 'od 0', 'od 1', 'od 2', 'od002', 'od100', 'od200',
-  'edfa', 'csp-8020', 'csp 8020', 'vector opti',
-];
-function isSwitchEquip(name){
-  const n = String(name || '').toLowerCase();
-  return SWITCH_PATTERNS.some(p => n.includes(p));
-}
-
-/* ============================================================
-   ЦВЕТА (демонтаж)
+   ОПРЕДЕЛЕНИЕ ЦВЕТА (демонтаж)
    ============================================================ */
 function parseColor(v){
   if (!v) return null;
@@ -434,15 +405,7 @@ function extractSheet(name, ws){
     const targetLoc = loc || currentLoc;
 
     if (equip || comm){
-      const targetBlockLoc = targetLoc || 'Расположение не указано';
-      if (equip && isSwitchEquip(equip)){
-        addSwitch(current, targetBlockLoc, equip, comm);
-      } else if (equip){
-        addTv(current, targetBlockLoc, equip);
-        if (comm) addSwitch(current, targetBlockLoc, '', comm);
-      } else if (comm){
-        addSwitch(current, targetBlockLoc, '', comm);
-      }
+      addEquip(current, targetLoc || 'Расположение не указано', equip, comm);
     } else if (targetLoc){
       ensureBlock(current, targetLoc);
     }
@@ -455,8 +418,8 @@ function extractSheet(name, ws){
 
   return out.map(r => {
     const blocks = r.blocks
-      .map(b => ({ loc: b.loc, tv: b.tv, sw: b.sw }))
-      .filter(b => b.tv.length > 0 || b.sw.length > 0);
+      .map(b => ({ loc: b.loc, items: b.items.filter(it => it.equip || it.comm) }))
+      .filter(b => b.items.length > 0);
     return {
       addr: r.addr, sheet: r.sheet, demounted: r.demounted,
       blocks: blocks.length ? blocks : r.blocks,
@@ -470,18 +433,13 @@ function extractSheet(name, ws){
 
 function ensureBlock(rec, loc){
   let b = rec.blocks.find(x => x.loc === loc);
-  if (!b){ b = { loc, tv: [], sw: [] }; rec.blocks.push(b); }
+  if (!b){ b = { loc, items: [] }; rec.blocks.push(b); }
   return b;
 }
-function addTv(rec, loc, name){
+function addEquip(rec, loc, equip, comm){
   const b = ensureBlock(rec, loc);
-  if (!b.tv.includes(name)) b.tv.push(name);
-}
-function addSwitch(rec, loc, name, comm){
-  const b = ensureBlock(rec, loc);
-  if (!b.sw.some(x => x.name === name && x.comm === comm)){
-    b.sw.push({ name, comm });
-  }
+  if (!b.items.some(it => it.equip === equip && it.comm === comm))
+    b.items.push({ equip, comm });
 }
 function pushUnique(arr, v){
   v = String(v ?? '').trim();
@@ -538,7 +496,7 @@ function search(query){
 }
 
 /* ============================================================
-   ОТРИСОВКА
+   ОТРИСОВКА — как было до кнопки
    ============================================================ */
 function esc(s){
   return String(s || '').replace(/[&<>"']/g, c => ({
@@ -547,46 +505,19 @@ function esc(s){
 }
 
 function renderBlock(block){
-  const lines = [];
-
-  // Строка ТВ
-  const tvVal = block.tv.length
-    ? block.tv.map(esc).join(', ')
-    : '<span class="val empty">—</span>';
-  lines.push(
-    '<div class="equip-line tv">' +
-      '<span class="tag">ТВ</span>' +
-      '<span class="val">' + tvVal + '</span>' +
-    '</div>'
-  );
-
-  // Строка Коммутатор (каждый со своим №)
-  if (block.sw.length){
-    const swVal = block.sw.map(it => {
-      const name = it.name ? esc(it.name) : '<span style="color:#9aa3ad">—</span>';
-      const badge = it.comm
-        ? '<span class="comm-badge" title="№ коммутатора">№ ' + esc(it.comm) + '</span>'
-        : '';
-      return name + badge;
-    }).join('<br>');
-    lines.push(
-      '<div class="equip-line sw">' +
-        '<span class="tag">Коммутатор</span>' +
-        '<span class="val">' + swVal + '</span>' +
-      '</div>'
-    );
-  } else {
-    lines.push(
-      '<div class="equip-line sw">' +
-        '<span class="tag">Коммутатор</span>' +
-        '<span class="val empty">—</span>' +
-      '</div>'
-    );
-  }
-
+  const items = block.items.map(it => {
+    const name = it.equip ? esc(it.equip) : '<span style="color:#9aa3ad">—</span>';
+    const commBadge = it.comm
+      ? '<span class="comm-badge" title="№ коммутатора">№ ' + esc(it.comm) + '</span>'
+      : '';
+    return '<div class="equip-row">' +
+             '<div class="eq-name">' + name + '</div>' +
+             '<div>' + commBadge + '</div>' +
+           '</div>';
+  }).join('');
   return '<div class="loc-block">' +
            '<div class="loc-title">' + esc(block.loc) + '</div>' +
-           lines.join('') +
+           (items || '<div class="equip-row" style="color:#9aa3ad">Оборудование не указано</div>') +
          '</div>';
 }
 
@@ -646,7 +577,7 @@ $q.addEventListener('input', doSearch);
 $q.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
 
 /* ============================================================
-   МОДАЛЬНОЕ ОКНО «ВНЕСТИ ИЗМЕНЕНИЯ»
+   МОДАЛЬНОЕ ОКНО «ВНЕСТИ ИЗМЕНЕНИЯ» — как сейчас
    ============================================================ */
 const $backdrop = document.getElementById('modal-backdrop');
 const $form     = document.getElementById('edit-form');
@@ -672,7 +603,6 @@ $btnCancel.addEventListener('click', closeModal);
 $backdrop.addEventListener('click', e => { if (e.target === $backdrop) closeModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
-/* Отправка формы в Telegram через Worker */
 $form.addEventListener('submit', async (e) => {
   e.preventDefault();
 
@@ -694,8 +624,6 @@ $form.addEventListener('submit', async (e) => {
   const lines = ['📩 <b>Новая заявка на изменение</b>', ''];
   lines.push('🏠 <b>Адрес:</b> ' + tg(data.addr));
   if (data.loc) lines.push('📍 <b>Расположение:</b> ' + tg(data.loc));
-
-  // ТВ и Коммутатор — отдельными строками
   if (data.tv) lines.push('📺 <b>ТВ:</b> ' + tg(data.tv));
   if (data.sw || data.comm){
     let swLine = '🔀 <b>Коммутатор:</b> ' + tg(data.sw || '—');
