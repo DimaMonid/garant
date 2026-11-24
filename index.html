@@ -13,6 +13,8 @@
     --new:#047857; --new-bg:#ecfdf5;
     --old:#b45309; --old-bg:#fffbeb;
     --demo:#b91c1c; --demo-bg:#fef2f2; --demo-border:#fecaca;
+    --tv:#7c3aed; --tv-bg:#f5f3ff;
+    --sw:#0369a1; --sw-bg:#f0f9ff;
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
@@ -69,12 +71,20 @@
   .loc-block .loc-title{font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;
        display:flex;align-items:center;gap:6px}
   .loc-block .loc-title::before{content:"📍";font-size:13px}
-  .equip-row{display:grid;grid-template-columns:1fr auto;gap:8px 14px;
-       padding:6px 0;border-top:1px dashed #d7dde5;font-size:14px}
-  .equip-row:first-of-type{border-top:0}
-  .equip-row .eq-name{font-weight:600;color:#1f2933;word-break:break-word}
+
+  .equip-line{display:flex;align-items:flex-start;gap:10px;padding:6px 0;
+       border-top:1px dashed #d7dde5;font-size:14px}
+  .equip-line:first-of-type{border-top:0}
+  .equip-line .tag{flex:0 0 auto;min-width:86px;font-size:11px;font-weight:700;
+       text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:6px;
+       text-align:center;margin-top:1px}
+  .equip-line.tv .tag{background:var(--tv-bg);color:var(--tv);border:1px solid #ddd6fe}
+  .equip-line.sw .tag{background:var(--sw-bg);color:var(--sw);border:1px solid #bae6fd}
+  .equip-line .val{flex:1;font-weight:600;color:#1f2933;word-break:break-word}
+  .equip-line .val.empty{color:#9aa3ad;font-weight:400;font-style:italic}
   .comm-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;
-       background:#e0e7ff;color:#3730a3;font-weight:600;white-space:nowrap;align-self:start}
+       background:#e0e7ff;color:#3730a3;font-weight:600;white-space:nowrap;margin-left:6px}
+
   .extra{margin-top:8px;font-size:13px;color:#374151}
   .extra .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.04em;
        color:var(--muted);margin-bottom:1px}
@@ -94,7 +104,7 @@
   .loading{background:#eef4ff;border:1px solid #c7d7fe;color:#1e40af;
        padding:12px 14px;border-radius:10px;margin-bottom:14px;font-size:14px}
 
-  /* ---------- Модальное окно «Внести изменения» ---------- */
+  /* Модальное окно */
   .modal-backdrop{
     position:fixed;inset:0;background:rgba(15,23,42,.55);
     display:none;align-items:flex-start;justify-content:center;
@@ -134,6 +144,8 @@
   @media (max-width:600px){
     .wrap{padding:14px}
     .modal .row2{grid-template-columns:1fr}
+    .equip-line{flex-direction:column;gap:2px}
+    .equip-line .tag{min-width:0;align-self:flex-start}
   }
 </style>
 </head>
@@ -176,16 +188,25 @@
       <label for="f-loc">Расположение оборудования</label>
       <input id="f-loc" name="loc" type="text" placeholder="например: 2 П · Черд">
 
+      <!-- Оборудование разделено на 2 строки: ТВ и Коммутатор -->
       <div class="row2">
         <div>
-          <label for="f-equip">Оборудование</label>
-          <input id="f-equip" name="equip" type="text" placeholder="например: OD 100">
+          <label for="f-tv">ТВ</label>
+          <input id="f-tv" name="tv" type="text" placeholder="например: Антенна Goldmaster">
         </div>
         <div>
-          <label for="f-comm">№ коммутатора</label>
-          <input id="f-comm" name="comm" type="text" placeholder="например: 229">
+          <label for="f-sw">Коммутатор</label>
+          <input id="f-sw" name="sw" type="text" placeholder="например: SNR-S2960-24G">
         </div>
       </div>
+
+      <!-- № коммутатора относится именно к строке «Коммутатор» -->
+      <label for="f-comm">№ коммутатора <span style="font-weight:400;color:var(--muted)">(для указанного выше коммутатора)</span></label>
+      <input id="f-comm" name="comm" type="text" placeholder="например: 229">
+
+      <!-- Новое поле: Ящики Ethernet -->
+      <label for="f-box">Ящики Ethernet</label>
+      <input id="f-box" name="box" type="text" placeholder="например: 3">
 
       <label for="f-access">Доступ к оборудованию</label>
       <textarea id="f-access" name="access" placeholder="например: Ключи у жильцов"></textarea>
@@ -207,13 +228,8 @@
    НАСТРОЙКИ
    ============================================================ */
 const EXCEL_FILE = 'data.xlsx';
-
-/* URL вашего Cloudflare Worker (прокси в Telegram) */
 const TG_PROXY_URL = 'https://tgproxy.1234567waka-waka.workers.dev';
 
-/* ============================================================
-   ГЛОБАЛЬНОЕ СОСТОЯНИЕ
-   ============================================================ */
 let RECORDS = [];
 const $q       = document.getElementById('q');
 const $btn     = document.getElementById('btn');
@@ -248,7 +264,22 @@ const $loading = document.getElementById('loading');
 })();
 
 /* ============================================================
-   ОПРЕДЕЛЕНИЕ ЦВЕТА (демонтаж)
+   КЛАССИФИКАЦИЯ: ТВ или Коммутатор
+   ============================================================ */
+const SWITCH_PATTERNS = [
+  'коммутатор', 'switch',
+  'snr-s', 'dcs', 'dcn', 'qsw', 'qsm', 'mes', 'eltex', 'procurve', 'cisco',
+  'tp-link', 'opti vector', 'bd203u', 'wr1001', 'wr100j', 'wrj1001',
+  'sdo', 'sdo3000', 'od 0', 'od 1', 'od 2', 'od002', 'od100', 'od200',
+  'edfa', 'csp-8020', 'csp 8020', 'vector opti',
+];
+function isSwitchEquip(name){
+  const n = String(name || '').toLowerCase();
+  return SWITCH_PATTERNS.some(p => n.includes(p));
+}
+
+/* ============================================================
+   ЦВЕТА (демонтаж)
    ============================================================ */
 function parseColor(v){
   if (!v) return null;
@@ -402,8 +433,19 @@ function extractSheet(name, ws){
     if (loc) currentLoc = loc;
     const targetLoc = loc || currentLoc;
 
-    if (equip || comm) addEquip(current, targetLoc || 'Расположение не указано', equip, comm);
-    else if (targetLoc) ensureBlock(current, targetLoc);
+    if (equip || comm){
+      const targetBlockLoc = targetLoc || 'Расположение не указано';
+      if (equip && isSwitchEquip(equip)){
+        addSwitch(current, targetBlockLoc, equip, comm);
+      } else if (equip){
+        addTv(current, targetBlockLoc, equip);
+        if (comm) addSwitch(current, targetBlockLoc, '', comm);
+      } else if (comm){
+        addSwitch(current, targetBlockLoc, '', comm);
+      }
+    } else if (targetLoc){
+      ensureBlock(current, targetLoc);
+    }
 
     if (eth) pushUnique(current.ethParts, eth);
     if (accessNew)   pushUnique(current.accessNewParts,   accessNew);
@@ -413,8 +455,8 @@ function extractSheet(name, ws){
 
   return out.map(r => {
     const blocks = r.blocks
-      .map(b => ({ loc: b.loc, items: b.items.filter(it => it.equip || it.comm) }))
-      .filter(b => b.items.length > 0);
+      .map(b => ({ loc: b.loc, tv: b.tv, sw: b.sw }))
+      .filter(b => b.tv.length > 0 || b.sw.length > 0);
     return {
       addr: r.addr, sheet: r.sheet, demounted: r.demounted,
       blocks: blocks.length ? blocks : r.blocks,
@@ -428,13 +470,18 @@ function extractSheet(name, ws){
 
 function ensureBlock(rec, loc){
   let b = rec.blocks.find(x => x.loc === loc);
-  if (!b){ b = { loc, items: [] }; rec.blocks.push(b); }
+  if (!b){ b = { loc, tv: [], sw: [] }; rec.blocks.push(b); }
   return b;
 }
-function addEquip(rec, loc, equip, comm){
+function addTv(rec, loc, name){
   const b = ensureBlock(rec, loc);
-  if (!b.items.some(it => it.equip === equip && it.comm === comm))
-    b.items.push({ equip, comm });
+  if (!b.tv.includes(name)) b.tv.push(name);
+}
+function addSwitch(rec, loc, name, comm){
+  const b = ensureBlock(rec, loc);
+  if (!b.sw.some(x => x.name === name && x.comm === comm)){
+    b.sw.push({ name, comm });
+  }
 }
 function pushUnique(arr, v){
   v = String(v ?? '').trim();
@@ -453,7 +500,7 @@ function buildRecords(wb){
 }
 
 /* ============================================================
-   ПОИСК С НОРМАЛИЗАЦИЕЙ КИРИЛЛИЦЫ И ЛАТИНИЦЫ
+   ПОИСК: кириллица ↔ латиница
    ============================================================ */
 const HOMOGLYPHS = {
   'а':'a','в':'b','с':'c','е':'e','н':'h','к':'k','м':'m',
@@ -464,9 +511,7 @@ const HOMOGLYPHS = {
 function norm(s){
   let t = String(s || '').toLowerCase().replace(/ё/g,'е');
   let out = '';
-  for (const ch of t){
-    out += HOMOGLYPHS[ch] || ch;
-  }
+  for (const ch of t) out += HOMOGLYPHS[ch] || ch;
   return out
     .replace(/\s+/g,' ')
     .replace(/[.,]/g,' ')
@@ -502,19 +547,46 @@ function esc(s){
 }
 
 function renderBlock(block){
-  const items = block.items.map(it => {
-    const name = it.equip ? esc(it.equip) : '<span style="color:#9aa3ad">—</span>';
-    const commBadge = it.comm
-      ? '<span class="comm-badge" title="№ коммутатора">№ ' + esc(it.comm) + '</span>'
-      : '';
-    return '<div class="equip-row">' +
-             '<div class="eq-name">' + name + '</div>' +
-             '<div>' + commBadge + '</div>' +
-           '</div>';
-  }).join('');
+  const lines = [];
+
+  // Строка ТВ
+  const tvVal = block.tv.length
+    ? block.tv.map(esc).join(', ')
+    : '<span class="val empty">—</span>';
+  lines.push(
+    '<div class="equip-line tv">' +
+      '<span class="tag">ТВ</span>' +
+      '<span class="val">' + tvVal + '</span>' +
+    '</div>'
+  );
+
+  // Строка Коммутатор (каждый со своим №)
+  if (block.sw.length){
+    const swVal = block.sw.map(it => {
+      const name = it.name ? esc(it.name) : '<span style="color:#9aa3ad">—</span>';
+      const badge = it.comm
+        ? '<span class="comm-badge" title="№ коммутатора">№ ' + esc(it.comm) + '</span>'
+        : '';
+      return name + badge;
+    }).join('<br>');
+    lines.push(
+      '<div class="equip-line sw">' +
+        '<span class="tag">Коммутатор</span>' +
+        '<span class="val">' + swVal + '</span>' +
+      '</div>'
+    );
+  } else {
+    lines.push(
+      '<div class="equip-line sw">' +
+        '<span class="tag">Коммутатор</span>' +
+        '<span class="val empty">—</span>' +
+      '</div>'
+    );
+  }
+
   return '<div class="loc-block">' +
            '<div class="loc-title">' + esc(block.loc) + '</div>' +
-           (items || '<div class="equip-row" style="color:#9aa3ad">Оборудование не указано</div>') +
+           lines.join('') +
          '</div>';
 }
 
@@ -587,16 +659,13 @@ function openModal(){
   $backdrop.classList.add('open');
   $formMsg.className = 'form-msg';
   $formMsg.textContent = '';
-  // подставим адрес из строки поиска, если он есть
   const q = $q.value.trim();
   if (q && !document.getElementById('f-addr').value) {
     document.getElementById('f-addr').value = q;
   }
   document.getElementById('f-addr').focus();
 }
-function closeModal(){
-  $backdrop.classList.remove('open');
-}
+function closeModal(){ $backdrop.classList.remove('open'); }
 
 $btnEdit.addEventListener('click', openModal);
 $btnCancel.addEventListener('click', closeModal);
@@ -610,8 +679,10 @@ $form.addEventListener('submit', async (e) => {
   const data = {
     addr:  document.getElementById('f-addr').value.trim(),
     loc:   document.getElementById('f-loc').value.trim(),
-    equip: document.getElementById('f-equip').value.trim(),
+    tv:    document.getElementById('f-tv').value.trim(),
+    sw:    document.getElementById('f-sw').value.trim(),
     comm:  document.getElementById('f-comm').value.trim(),
+    box:   document.getElementById('f-box').value.trim(),
     access:document.getElementById('f-access').value.trim(),
   };
 
@@ -620,16 +691,19 @@ $form.addEventListener('submit', async (e) => {
     return;
   }
 
-  // Формируем текст сообщения
-  const lines = [
-    '📩 <b>Новая заявка на изменение</b>',
-    '',
-    '🏠 <b>Адрес:</b> ' + escapeTelegram(data.addr),
-  ];
-  if (data.loc)    lines.push('📍 <b>Расположение:</b> ' + escapeTelegram(data.loc));
-  if (data.equip)  lines.push('🔧 <b>Оборудование:</b> ' + escapeTelegram(data.equip));
-  if (data.comm)   lines.push('🔢 <b>№ коммутатора:</b> ' + escapeTelegram(data.comm));
-  if (data.access) lines.push('🔑 <b>Доступ:</b> ' + escapeTelegram(data.access));
+  const lines = ['📩 <b>Новая заявка на изменение</b>', ''];
+  lines.push('🏠 <b>Адрес:</b> ' + tg(data.addr));
+  if (data.loc) lines.push('📍 <b>Расположение:</b> ' + tg(data.loc));
+
+  // ТВ и Коммутатор — отдельными строками
+  if (data.tv) lines.push('📺 <b>ТВ:</b> ' + tg(data.tv));
+  if (data.sw || data.comm){
+    let swLine = '🔀 <b>Коммутатор:</b> ' + tg(data.sw || '—');
+    if (data.comm) swLine += '  <b>(№ ' + tg(data.comm) + ')</b>';
+    lines.push(swLine);
+  }
+  if (data.box) lines.push('📦 <b>Ящики Ethernet:</b> ' + tg(data.box));
+  if (data.access) lines.push('🔑 <b>Доступ:</b> ' + tg(data.access));
   lines.push('', '🕒 ' + new Date().toLocaleString('ru-RU'));
 
   const text = lines.join('\n');
@@ -644,12 +718,10 @@ $form.addEventListener('submit', async (e) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
     });
-
     const json = await res.json().catch(() => ({}));
     if (!res.ok || json.ok === false){
       throw new Error(json.error || ('HTTP ' + res.status));
     }
-
     showFormMsg('ok', '✅ Заявка отправлена! Спасибо.');
     $form.reset();
     setTimeout(closeModal, 1800);
@@ -666,13 +738,8 @@ function showFormMsg(type, text){
   $formMsg.className = 'form-msg ' + type;
   $formMsg.textContent = text;
 }
-
-/* Экранирование для Telegram HTML */
-function escapeTelegram(s){
-  return String(s || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+function tg(s){
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 </script>
 </body>
