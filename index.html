@@ -21,8 +21,17 @@
   header h1{margin:0;font-size:20px;font-weight:600}
   header p{margin:4px 0 0;font-size:13px;color:#cbd5e1}
   .wrap{max-width:1100px;margin:0 auto;padding:20px 24px 60px}
-  .searchbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-  .searchbar input{flex:1;min-width:240px;padding:12px 14px;font-size:16px;
+
+  .topbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .topbar .searchbar{flex:1;min-width:260px;margin:0}
+  .btn-edit{
+    padding:12px 18px;font-size:15px;border:0;border-radius:10px;
+    background:#0f766e;color:#fff;cursor:pointer;font-weight:600;white-space:nowrap;
+  }
+  .btn-edit:hover{background:#0e7490}
+
+  .searchbar{display:flex;gap:10px;flex-wrap:wrap}
+  .searchbar input{flex:1;min-width:200px;padding:12px 14px;font-size:16px;
        border:1px solid var(--border);border-radius:10px;background:#fff;outline:none}
   .searchbar input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
   .searchbar input:disabled{background:#eef1f5;color:#9aa3ad}
@@ -30,19 +39,17 @@
        background:var(--accent);color:#fff;cursor:pointer;font-weight:600}
   .searchbar button:disabled{background:#9db8f0;cursor:not-allowed}
   .searchbar button:hover:not(:disabled){background:#1d4ed8}
+
   .hint{font-size:13px;color:var(--muted);margin-bottom:14px}
   .status{font-size:14px;color:var(--muted);margin:10px 0 16px}
   .status b{color:var(--text)}
 
-  /* ---------- Карточка дома ---------- */
   .card{background:var(--card);border:1px solid var(--border);border-radius:12px;
         padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
   .card h3{margin:0 0 2px;font-size:17px;color:var(--accent)}
   .card .sheet{font-size:12px;color:var(--muted);margin-bottom:12px}
   .card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
   .card-head h3{flex:1;min-width:200px}
-
-  /* Демонтаж: карточка приглушена, но информация видна */
   .card.demounted{background:#fff;border-color:var(--demo-border);box-shadow:none}
   .card.demounted h3{color:#7f1d1d;text-decoration:line-through;
         text-decoration-color:rgba(185,28,28,.5);text-decoration-thickness:2px}
@@ -56,7 +63,6 @@
   }
   .demo-badge::before{content:"⛔";font-size:13px}
 
-  /* ---------- Блоки расположения ---------- */
   .loc-block{background:var(--loc-bg);border:1px solid var(--loc-border);
        border-radius:10px;padding:10px 12px;margin-bottom:10px}
   .loc-block:last-child{margin-bottom:0}
@@ -73,7 +79,6 @@
   .extra .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.04em;
        color:var(--muted);margin-bottom:1px}
 
-  /* ---------- Бейджи доступа ---------- */
   .access-new, .access-old{
     display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;
     font-weight:700;letter-spacing:.03em;margin-right:6px;text-transform:uppercase;
@@ -88,37 +93,127 @@
        padding:12px 14px;border-radius:10px;margin-bottom:14px;font-size:14px}
   .loading{background:#eef4ff;border:1px solid #c7d7fe;color:#1e40af;
        padding:12px 14px;border-radius:10px;margin-bottom:14px;font-size:14px}
-  @media (max-width:600px){.wrap{padding:14px}}
+
+  /* ---------- Модальное окно «Внести изменения» ---------- */
+  .modal-backdrop{
+    position:fixed;inset:0;background:rgba(15,23,42,.55);
+    display:none;align-items:flex-start;justify-content:center;
+    padding:24px;z-index:1000;overflow-y:auto;
+  }
+  .modal-backdrop.open{display:flex}
+  .modal{
+    background:#fff;border-radius:14px;max-width:640px;width:100%;
+    padding:22px 24px;box-shadow:0 20px 40px rgba(0,0,0,.25);
+    margin-top:40px;
+  }
+  .modal h2{margin:0 0 4px;font-size:19px;color:#0f172a}
+  .modal .sub{font-size:13px;color:var(--muted);margin-bottom:16px}
+  .modal label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px}
+  .modal input[type=text], .modal textarea{
+    width:100%;padding:10px 12px;font-size:14px;border:1px solid var(--border);
+    border-radius:8px;font-family:inherit;outline:none;background:#fff;
+  }
+  .modal input[type=text]:focus, .modal textarea:focus{
+    border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);
+  }
+  .modal textarea{min-height:70px;resize:vertical}
+  .modal .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;flex-wrap:wrap}
+  .modal .actions button{padding:11px 18px;font-size:14px;border-radius:9px;
+       border:0;cursor:pointer;font-weight:600}
+  .btn-cancel{background:#e5e7eb;color:#1f2933}
+  .btn-cancel:hover{background:#d1d5db}
+  .btn-send{background:var(--accent);color:#fff}
+  .btn-send:hover:not(:disabled){background:#1d4ed8}
+  .btn-send:disabled{background:#9db8f0;cursor:not-allowed}
+  .modal .note{font-size:12px;color:var(--muted);margin-top:10px}
+  .modal .form-msg{font-size:13px;margin-top:12px;padding:10px 12px;border-radius:8px;display:none}
+  .modal .form-msg.ok{display:block;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+  .modal .form-msg.err{display:block;background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
+
+  @media (max-width:600px){
+    .wrap{padding:14px}
+    .modal .row2{grid-template-columns:1fr}
+  }
 </style>
 </head>
 <body>
 <header>
   <h1>Поиск оборудования по адресу</h1>
-  <p>Данные читаются из Excel-файла (все листы) рядом с этой страницей</p>
+  <p>Данные читаются из Excel-файла рядом с этой страницей</p>
 </header>
 
 <div class="wrap">
   <div id="loading" class="loading">Загрузка файла Excel…</div>
   <div id="error" class="err" style="display:none"></div>
 
-  <div class="searchbar">
-    <input id="q" type="search" placeholder="Введите адрес, например: Гагарина 18, Поповича 7…" disabled autocomplete="off">
-    <button id="btn" disabled>Найти</button>
+  <div class="topbar">
+    <div class="searchbar">
+      <input id="q" type="search" placeholder="Введите адрес: Гагарина 18, Поповича 7…" disabled autocomplete="off">
+      <button id="btn" disabled>Найти</button>
+    </div>
+    <button id="btn-edit" class="btn-edit" title="Внести изменения по адресу">✏️ Внести изменения</button>
   </div>
+
   <div class="hint">
-    Поиск нечувствителен к регистру, букве «ё», точкам/запятым. Можно вводить часть адреса —
-    только улицу или только номер дома.
+    Поиск нечувствителен к регистру, «ё», точкам/запятым, а также к путанице
+    кириллицы и латиницы (А/A, В/B, С/C и т.п.).
   </div>
   <div id="status" class="status"></div>
   <div id="results"></div>
 </div>
 
+<!-- Модальное окно -->
+<div id="modal-backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h2 id="modal-title">Внести изменения</h2>
+    <div class="sub">Заявка будет отправлена в Telegram ответственному.</div>
+
+    <form id="edit-form" autocomplete="off">
+      <label for="f-addr">Адрес *</label>
+      <input id="f-addr" name="addr" type="text" required placeholder="например: Гагарина 18/3">
+
+      <label for="f-loc">Расположение оборудования</label>
+      <input id="f-loc" name="loc" type="text" placeholder="например: 2 П · Черд">
+
+      <div class="row2">
+        <div>
+          <label for="f-equip">Оборудование</label>
+          <input id="f-equip" name="equip" type="text" placeholder="например: OD 100">
+        </div>
+        <div>
+          <label for="f-comm">№ коммутатора</label>
+          <input id="f-comm" name="comm" type="text" placeholder="например: 229">
+        </div>
+      </div>
+
+      <label for="f-access">Доступ к оборудованию</label>
+      <textarea id="f-access" name="access" placeholder="например: Ключи у жильцов"></textarea>
+
+      <div class="actions">
+        <button type="button" id="btn-cancel" class="btn-cancel">Отмена</button>
+        <button type="submit" id="btn-send" class="btn-send">Отправить</button>
+      </div>
+      <div id="form-msg" class="form-msg"></div>
+      <div class="note">
+        Поля со звёздочкой обязательны. Если что-то не нужно менять — оставьте пустым.
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 /* ============================================================
-   Имя Excel-файла в корне репозитория (рядом с index.html).
+   НАСТРОЙКИ
    ============================================================ */
 const EXCEL_FILE = 'data.xlsx';
 
+/* URL вашего Cloudflare Worker (прокси в Telegram) */
+const TG_PROXY_URL = 'https://tgproxy.1234567waka-waka.workers.dev';
+
+/* ============================================================
+   ГЛОБАЛЬНОЕ СОСТОЯНИЕ
+   ============================================================ */
 let RECORDS = [];
 const $q       = document.getElementById('q');
 const $btn     = document.getElementById('btn');
@@ -127,14 +222,12 @@ const $results = document.getElementById('results');
 const $error   = document.getElementById('error');
 const $loading = document.getElementById('loading');
 
-/* ---------- Загрузка при старте ---------- */
+/* ---------- Загрузка Excel ---------- */
 (async function init(){
   try {
     const res = await fetch(EXCEL_FILE, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status + ' — файл «' + EXCEL_FILE + '» не найден.');
     const buf = await res.arrayBuffer();
-
-    /* ВАЖНО: cellStyles:true — иначе SheetJS не вернёт цвета заливки */
     const wb = XLSX.read(buf, { type: 'array', cellDates: true, cellStyles: true });
 
     RECORDS = buildRecords(wb);
@@ -155,80 +248,43 @@ const $loading = document.getElementById('loading');
 })();
 
 /* ============================================================
-   ЦВЕТА: определение «красной» заливки
+   ОПРЕДЕЛЕНИЕ ЦВЕТА (демонтаж)
    ============================================================ */
-/* Преобразуем цвет вида "#RRGGBB", "RRGGBB", "rgb(r,g,b)" в {r,g,b} */
 function parseColor(v){
   if (!v) return null;
   let s = String(v).trim().toLowerCase();
-
-  // "#rrggbb" / "rrggbb"
   let m = s.match(/^#?([0-9a-f]{6})$/);
   if (m){
     const hex = m[1];
-    return {
-      r: parseInt(hex.slice(0,2),16),
-      g: parseInt(hex.slice(2,4),16),
-      b: parseInt(hex.slice(4,6),16),
-    };
+    return { r: parseInt(hex.slice(0,2),16), g: parseInt(hex.slice(2,4),16), b: parseInt(hex.slice(4,6),16) };
   }
-  // "#rgb"
   m = s.match(/^#?([0-9a-f]{3})$/);
   if (m){
     const h = m[1];
-    return {
-      r: parseInt(h[0]+h[0],16),
-      g: parseInt(h[1]+h[1],16),
-      b: parseInt(h[2]+h[2],16),
-    };
+    return { r: parseInt(h[0]+h[0],16), g: parseInt(h[1]+h[1],16), b: parseInt(h[2]+h[2],16) };
   }
-  // "rgb(r,g,b)"
   m = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
-  if (m){
-    return { r:+m[1], g:+m[2], b:+m[3] };
-  }
+  if (m) return { r:+m[1], g:+m[2], b:+m[3] };
   return null;
 }
-
-/* «Красный ли?» — допускаем разные оттенки:
-   ярко-красный (FF0000), тёмно-красный (C00000),
-   бледно-красный (FFC7CE — «плохой» стиль Excel),
-   кирпичный и т.п.
-   Правило: R заметно больше G и B. */
 function isReddish(rgb){
   if (!rgb) return false;
   const {r,g,b} = rgb;
-  // насыщенный красный: R высокий, G и B низкие
   if (r > 150 && g < 100 && b < 100) return true;
-  // бледно-красный (FFC7CE): R высокий, G и B чуть ниже R, но заметно
   if (r > 200 && g < 210 && b < 210 && (r - g) > 40 && (r - b) > 40) return true;
-  // общее правило
   if (r > 120 && (r - g) > 50 && (r - b) > 50) return true;
   return false;
 }
-
-/* Получить цвет заливки ячейки (r,c) из листа ws.
-   SheetJS при cellStyles:true кладёт стиль в ws[r][c].s.fgColor / bgColor.
-   Возможны разные варианты структуры — перебираем известные. */
 function getCellFill(ws, r, c){
   if (!ws || !ws['!ref']) return null;
-  const addr = XLSX.utils.encode_cell({ r, c });
-  const cell = ws[addr];
+  const cell = ws[XLSX.utils.encode_cell({ r, c })];
   if (!cell || !cell.s) return null;
   const s = cell.s;
-
-  // Возможные места хранения цвета заливки
-  const candidates = [
-    s.fgColor, s.bgColor,
-    s.fill && s.fill.fgColor,
-    s.fill && s.fill.bgColor,
-    s.fill && s.fill.patternType && s.fill.fgColor,
-  ].filter(Boolean);
-
+  const candidates = [s.fgColor, s.bgColor, s.fill && s.fill.fgColor, s.fill && s.fill.bgColor].filter(Boolean);
   for (const col of candidates){
     if (typeof col === 'object'){
       if (col.rgb) { const rgb = parseColor(col.rgb); if (rgb) return rgb; }
-      if (col.theme !== undefined) continue; // тема — не наш случай
+      if (col.theme !== undefined) continue;
     } else if (typeof col === 'string'){
       const rgb = parseColor(col); if (rgb) return rgb;
     }
@@ -243,14 +299,13 @@ function sheetToRows(ws){
   return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
 }
 
-function detectColumns(rows, sheetName){
+function detectColumns(rows){
   const KEYS = {
     addr:   ['улица', 'адрес'],
     loc:    ['раположение', 'расположение'],
     equip:  ['оборудование', 'оборуд'],
     eth:    ['ethernet', 'ящики'],
   };
-
   let best = { idx: -1, score: 0, header: [] };
   for (let i = 0; i < Math.min(10, rows.length); i++){
     const header = rows[i].map(v => String(v).toLowerCase().trim());
@@ -265,7 +320,6 @@ function detectColumns(rows, sheetName){
     best.idx = 0;
     best.header = (rows[0] || []).map(v => String(v).toLowerCase().trim());
   }
-
   const header = best.header;
   const find = (kwList) => header.findIndex(h => kwList.some(kw => h.includes(kw)));
 
@@ -275,31 +329,20 @@ function detectColumns(rows, sheetName){
   });
 
   const colEquip = find(KEYS.equip);
-
-  // № коммутатора — столбец СРАЗУ ПОСЛЕ «Оборудование»
   let colComm = -1;
-  if (colEquip >= 0 && colEquip + 1 < header.length){
-    colComm = colEquip + 1;
-  } else {
-    colComm = find(['коммутатор', '№ ком', 'инв']);
-  }
+  if (colEquip >= 0 && colEquip + 1 < header.length) colComm = colEquip + 1;
+  else colComm = find(['коммутатор', '№ ком', 'инв']);
 
-  // Столбцы «Доступ к оборудованию»
   const accessIdxes = [];
   header.forEach((h, i) => {
     if (h.includes('доступ')) accessIdxes.push({ idx: i, header: h });
   });
-
   let colAccessNew = -1, colAccessOld = -1, colAccessPlain = -1;
-  if (accessIdxes.length === 1){
-    colAccessPlain = accessIdxes[0].idx;
-  } else if (accessIdxes.length >= 2){
+  if (accessIdxes.length === 1) colAccessPlain = accessIdxes[0].idx;
+  else if (accessIdxes.length >= 2){
     for (const a of accessIdxes){
-      if (a.header.includes('верный')){
-        if (colAccessNew < 0) colAccessNew = a.idx;
-      } else {
-        if (colAccessOld < 0) colAccessOld = a.idx;
-      }
+      if (a.header.includes('верный')){ if (colAccessNew < 0) colAccessNew = a.idx; }
+      else { if (colAccessOld < 0) colAccessOld = a.idx; }
     }
     if (colAccessNew < 0 && colAccessOld < 0){
       colAccessOld = accessIdxes[0].idx;
@@ -312,39 +355,30 @@ function detectColumns(rows, sheetName){
     colAddr:   find(KEYS.addr),
     colLoc1:   locIdxes[0] ?? -1,
     colLoc2:   locIdxes[1] ?? -1,
-    colEquip,
-    colComm,
+    colEquip, colComm,
     colEth:    find(KEYS.eth),
     colAccessNew, colAccessOld, colAccessPlain,
   };
 }
 
-/* ============================================================
-   ИЗВЛЕЧЕНИЕ С НАСЛЕДОВАНИЕМ РАСПОЛОЖЕНИЯ И ДЕТЕКЦИЕЙ ДЕМОНТАЖА
-   ============================================================ */
 function extractSheet(name, ws){
   const rows = sheetToRows(ws);
   if (rows.length === 0) return [];
-
-  const c = detectColumns(rows, name);
+  const c = detectColumns(rows);
   if (c.colAddr < 0) return [];
 
   const out = [];
-  let current = null;
-  let currentLoc = '';
-
+  let current = null, currentLoc = '';
   const get = (row, idx) => (idx >= 0 && idx < row.length) ? String(row[idx] ?? '').trim() : '';
 
   for (let i = c.headerIdx + 1; i < rows.length; i++){
     const row = rows[i];
-
     const addr  = get(row, c.colAddr);
     const loc1  = get(row, c.colLoc1);
     const loc2  = get(row, c.colLoc2);
     const equip = get(row, c.colEquip);
     const comm  = get(row, c.colComm);
     const eth   = get(row, c.colEth);
-
     const accessNew   = get(row, c.colAccessNew);
     const accessOld   = get(row, c.colAccessOld);
     const accessPlain = get(row, c.colAccessPlain);
@@ -354,35 +388,22 @@ function extractSheet(name, ws){
     else loc = loc1 || loc2;
 
     if (addr){
-      /* Проверяем цвет заливки ячейки с адресом.
-         Номер строки в файле = i + 1 (SheetJS считает строки с 0). */
       const fill = getCellFill(ws, i, c.colAddr);
-      const demounted = isReddish(fill);
-
       current = {
-        addr,
-        sheet: name,
-        demounted,
-        blocks: [],
-        ethParts: [],
-        accessNewParts: [],
-        accessOldParts: [],
-        accessPlainParts: [],
+        addr, sheet: name, demounted: isReddish(fill),
+        blocks: [], ethParts: [],
+        accessNewParts: [], accessOldParts: [], accessPlainParts: [],
       };
       out.push(current);
       currentLoc = '';
     }
-
     if (!current) continue;
 
     if (loc) currentLoc = loc;
     const targetLoc = loc || currentLoc;
 
-    if (equip || comm){
-      addEquip(current, targetLoc || 'Расположение не указано', equip, comm);
-    } else if (targetLoc){
-      ensureBlock(current, targetLoc);
-    }
+    if (equip || comm) addEquip(current, targetLoc || 'Расположение не указано', equip, comm);
+    else if (targetLoc) ensureBlock(current, targetLoc);
 
     if (eth) pushUnique(current.ethParts, eth);
     if (accessNew)   pushUnique(current.accessNewParts,   accessNew);
@@ -392,20 +413,14 @@ function extractSheet(name, ws){
 
   return out.map(r => {
     const blocks = r.blocks
-      .map(b => ({
-        loc: b.loc,
-        items: b.items.filter(it => it.equip || it.comm),
-      }))
-      .filter(b => b.items.length > 0 || b.isPlaceholder);
-
+      .map(b => ({ loc: b.loc, items: b.items.filter(it => it.equip || it.comm) }))
+      .filter(b => b.items.length > 0);
     return {
-      addr:   r.addr,
-      sheet:  r.sheet,
-      demounted: r.demounted,
+      addr: r.addr, sheet: r.sheet, demounted: r.demounted,
       blocks: blocks.length ? blocks : r.blocks,
-      eth:    r.ethParts.join('; '),
-      accessNew:   r.accessNewParts.join('; '),
-      accessOld:   r.accessOldParts.join('; '),
+      eth: r.ethParts.join('; '),
+      accessNew: r.accessNewParts.join('; '),
+      accessOld: r.accessOldParts.join('; '),
       accessPlain: r.accessPlainParts.join('; '),
     };
   });
@@ -416,43 +431,43 @@ function ensureBlock(rec, loc){
   if (!b){ b = { loc, items: [] }; rec.blocks.push(b); }
   return b;
 }
-
 function addEquip(rec, loc, equip, comm){
   const b = ensureBlock(rec, loc);
-  const dup = b.items.some(it => it.equip === equip && it.comm === comm);
-  if (!dup) b.items.push({ equip, comm });
+  if (!b.items.some(it => it.equip === equip && it.comm === comm))
+    b.items.push({ equip, comm });
 }
-
 function pushUnique(arr, v){
   v = String(v ?? '').trim();
-  if (!v) return;
-  if (!arr.includes(v)) arr.push(v);
+  if (v && !arr.includes(v)) arr.push(v);
 }
 
-/* ============================================================
-   СБОРКА ПО ВСЕМ ЛИСТАМ
-   ============================================================ */
 function buildRecords(wb){
   const records = [];
   for (const name of wb.SheetNames){
     const ws = wb.Sheets[name];
     if (!ws) continue;
-    try {
-      records.push(...extractSheet(name, ws));
-    } catch (e){
-      console.warn('Лист не обработан:', name, e);
-    }
+    try { records.push(...extractSheet(name, ws)); }
+    catch (e){ console.warn('Лист не обработан:', name, e); }
   }
   return records;
 }
 
 /* ============================================================
-   ПОИСК
+   ПОИСК С НОРМАЛИЗАЦИЕЙ КИРИЛЛИЦЫ И ЛАТИНИЦЫ
    ============================================================ */
+const HOMOGLYPHS = {
+  'а':'a','в':'b','с':'c','е':'e','н':'h','к':'k','м':'m',
+  'о':'o','р':'p','т':'t','х':'x','у':'y','і':'i','ј':'j',
+  'ѕ':'s','ԁ':'d','ɡ':'g','ӏ':'l','ո':'n','ս':'u','ѵ':'v','ԝ':'w',
+};
+
 function norm(s){
-  return String(s || '')
-    .toLowerCase()
-    .replace(/ё/g,'е')
+  let t = String(s || '').toLowerCase().replace(/ё/g,'е');
+  let out = '';
+  for (const ch of t){
+    out += HOMOGLYPHS[ch] || ch;
+  }
+  return out
     .replace(/\s+/g,' ')
     .replace(/[.,]/g,' ')
     .replace(/\bд\b/g,'')
@@ -497,7 +512,6 @@ function renderBlock(block){
              '<div>' + commBadge + '</div>' +
            '</div>';
   }).join('');
-
   return '<div class="loc-block">' +
            '<div class="loc-title">' + esc(block.loc) + '</div>' +
            (items || '<div class="equip-row" style="color:#9aa3ad">Оборудование не указано</div>') +
@@ -511,17 +525,15 @@ function renderAccess(label, value, kind){
     : kind === 'old'
       ? '<span class="access-old">старый</span>'
       : '';
-  return '<div class="extra">' +
-           '<div class="lbl">' + esc(label) + '</div>' +
-           badge + esc(value) +
-         '</div>';
+  return '<div class="extra"><div class="lbl">' + esc(label) + '</div>' +
+         badge + esc(value) + '</div>';
 }
 
 function render(list, query){
   if(!query.trim()){ $status.textContent=''; $results.innerHTML=''; return; }
   if(list.length === 0){
     $status.innerHTML = 'По запросу <b>' + esc(query) + '</b> ничего не найдено.';
-    $results.innerHTML = '<div class="no-results">Попробуйте ввести часть адреса: только улицу или только номер дома.</div>';
+    $results.innerHTML = '<div class="no-results">Попробуйте ввести часть адреса.</div>';
     return;
   }
   $status.innerHTML = 'Найдено записей: <b>' + list.length + '</b> по запросу «' + esc(query) + '»';
@@ -532,10 +544,7 @@ function render(list, query){
       : '<div class="loc-block" style="color:#9aa3ad">Расположение не указано</div>';
 
     const extra = [];
-    if (rec.eth){
-      extra.push('<div class="extra"><div class="lbl">Ящики Ethernet</div>' + esc(rec.eth) + '</div>');
-    }
-
+    if (rec.eth) extra.push('<div class="extra"><div class="lbl">Ящики Ethernet</div>' + esc(rec.eth) + '</div>');
     if (rec.accessNew || rec.accessOld){
       extra.push(renderAccess('Доступ к оборудованию', rec.accessNew, 'new'));
       extra.push(renderAccess('Доступ к оборудованию', rec.accessOld, 'old'));
@@ -544,17 +553,12 @@ function render(list, query){
     }
 
     const demoBadge = rec.demounted
-      ? '<span class="demo-badge">Оборудование демонтировано</span>'
-      : '';
+      ? '<span class="demo-badge">Оборудование демонтировано</span>' : '';
 
     return '<div class="card' + (rec.demounted ? ' demounted' : '') + '">' +
-      '<div class="card-head">' +
-        '<h3>' + esc(rec.addr) + '</h3>' +
-        demoBadge +
-      '</div>' +
+      '<div class="card-head"><h3>' + esc(rec.addr) + '</h3>' + demoBadge + '</div>' +
       '<div class="sheet">Лист: ' + esc(rec.sheet) + '</div>' +
-      blocksHtml +
-      extra.join('') +
+      blocksHtml + extra.join('') +
     '</div>';
   }).join('');
 }
@@ -568,6 +572,108 @@ function doSearch(){
 $btn.addEventListener('click', doSearch);
 $q.addEventListener('input', doSearch);
 $q.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
+
+/* ============================================================
+   МОДАЛЬНОЕ ОКНО «ВНЕСТИ ИЗМЕНЕНИЯ»
+   ============================================================ */
+const $backdrop = document.getElementById('modal-backdrop');
+const $form     = document.getElementById('edit-form');
+const $btnEdit  = document.getElementById('btn-edit');
+const $btnCancel= document.getElementById('btn-cancel');
+const $btnSend  = document.getElementById('btn-send');
+const $formMsg  = document.getElementById('form-msg');
+
+function openModal(){
+  $backdrop.classList.add('open');
+  $formMsg.className = 'form-msg';
+  $formMsg.textContent = '';
+  // подставим адрес из строки поиска, если он есть
+  const q = $q.value.trim();
+  if (q && !document.getElementById('f-addr').value) {
+    document.getElementById('f-addr').value = q;
+  }
+  document.getElementById('f-addr').focus();
+}
+function closeModal(){
+  $backdrop.classList.remove('open');
+}
+
+$btnEdit.addEventListener('click', openModal);
+$btnCancel.addEventListener('click', closeModal);
+$backdrop.addEventListener('click', e => { if (e.target === $backdrop) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+/* Отправка формы в Telegram через Worker */
+$form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const data = {
+    addr:  document.getElementById('f-addr').value.trim(),
+    loc:   document.getElementById('f-loc').value.trim(),
+    equip: document.getElementById('f-equip').value.trim(),
+    comm:  document.getElementById('f-comm').value.trim(),
+    access:document.getElementById('f-access').value.trim(),
+  };
+
+  if (!data.addr){
+    showFormMsg('err', 'Укажите адрес.');
+    return;
+  }
+
+  // Формируем текст сообщения
+  const lines = [
+    '📩 <b>Новая заявка на изменение</b>',
+    '',
+    '🏠 <b>Адрес:</b> ' + escapeTelegram(data.addr),
+  ];
+  if (data.loc)    lines.push('📍 <b>Расположение:</b> ' + escapeTelegram(data.loc));
+  if (data.equip)  lines.push('🔧 <b>Оборудование:</b> ' + escapeTelegram(data.equip));
+  if (data.comm)   lines.push('🔢 <b>№ коммутатора:</b> ' + escapeTelegram(data.comm));
+  if (data.access) lines.push('🔑 <b>Доступ:</b> ' + escapeTelegram(data.access));
+  lines.push('', '🕒 ' + new Date().toLocaleString('ru-RU'));
+
+  const text = lines.join('\n');
+
+  $btnSend.disabled = true;
+  $btnSend.textContent = 'Отправка…';
+  showFormMsg('ok', 'Отправляем…');
+
+  try {
+    const res = await fetch(TG_PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.ok === false){
+      throw new Error(json.error || ('HTTP ' + res.status));
+    }
+
+    showFormMsg('ok', '✅ Заявка отправлена! Спасибо.');
+    $form.reset();
+    setTimeout(closeModal, 1800);
+  } catch (err) {
+    console.error(err);
+    showFormMsg('err', '❌ Не удалось отправить: ' + (err.message || err));
+  } finally {
+    $btnSend.disabled = false;
+    $btnSend.textContent = 'Отправить';
+  }
+});
+
+function showFormMsg(type, text){
+  $formMsg.className = 'form-msg ' + type;
+  $formMsg.textContent = text;
+}
+
+/* Экранирование для Telegram HTML */
+function escapeTelegram(s){
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
 </script>
 </body>
 </html>
