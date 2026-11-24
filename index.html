@@ -63,7 +63,6 @@
   }
   .demo-badge::before{content:"⛔";font-size:13px}
 
-  /* Блоки расположения и оборудование — как было до кнопки */
   .loc-block{background:var(--loc-bg);border:1px solid var(--loc-border);
        border-radius:10px;padding:10px 12px;margin-bottom:10px}
   .loc-block:last-child{margin-bottom:0}
@@ -180,7 +179,7 @@
       <div class="row2">
         <div>
           <label for="f-tv">ТВ</label>
-          <input id="f-tv" name="tv" type="text" placeholder="например: Антенна Goldmaster">
+          <input id="f-tv" name="tv" type="text" placeholder="например: BA203U">
         </div>
         <div>
           <label for="f-sw">Коммутатор</label>
@@ -197,6 +196,10 @@
       <label for="f-access">Доступ к оборудованию</label>
       <textarea id="f-access" name="access" placeholder="например: Ключи у жильцов"></textarea>
 
+      <!-- НОВОЕ ПОЛЕ: Комментарий -->
+      <label for="f-comment">Комментарий</label>
+      <textarea id="f-comment" name="comment" placeholder="Дополнительная информация (необязательно)"></textarea>
+
       <div class="actions">
         <button type="button" id="btn-cancel" class="btn-cancel">Отмена</button>
         <button type="submit" id="btn-send" class="btn-send">Отправить</button>
@@ -204,6 +207,7 @@
       <div id="form-msg" class="form-msg"></div>
       <div class="note">
         Поля со звёздочкой обязательны. Если что-то не нужно менять — оставьте пустым.
+        Должно быть заполнено хотя бы одно поле, кроме адреса.
       </div>
     </form>
   </div>
@@ -250,7 +254,7 @@ const $loading = document.getElementById('loading');
 })();
 
 /* ============================================================
-   ОПРЕДЕЛЕНИЕ ЦВЕТА (демонтаж)
+   ЦВЕТА (демонтаж)
    ============================================================ */
 function parseColor(v){
   if (!v) return null;
@@ -496,7 +500,7 @@ function search(query){
 }
 
 /* ============================================================
-   ОТРИСОВКА — как было до кнопки
+   ОТРИСОВКА
    ============================================================ */
 function esc(s){
   return String(s || '').replace(/[&<>"']/g, c => ({
@@ -577,7 +581,7 @@ $q.addEventListener('input', doSearch);
 $q.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
 
 /* ============================================================
-   МОДАЛЬНОЕ ОКНО «ВНЕСТИ ИЗМЕНЕНИЯ» — как сейчас
+   МОДАЛЬНОЕ ОКНО «ВНЕСТИ ИЗМЕНЕНИЯ»
    ============================================================ */
 const $backdrop = document.getElementById('modal-backdrop');
 const $form     = document.getElementById('edit-form');
@@ -603,21 +607,32 @@ $btnCancel.addEventListener('click', closeModal);
 $backdrop.addEventListener('click', e => { if (e.target === $backdrop) closeModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
+/* Отправка формы в Telegram через Worker */
 $form.addEventListener('submit', async (e) => {
   e.preventDefault();
 
   const data = {
-    addr:  document.getElementById('f-addr').value.trim(),
-    loc:   document.getElementById('f-loc').value.trim(),
-    tv:    document.getElementById('f-tv').value.trim(),
-    sw:    document.getElementById('f-sw').value.trim(),
-    comm:  document.getElementById('f-comm').value.trim(),
-    box:   document.getElementById('f-box').value.trim(),
-    access:document.getElementById('f-access').value.trim(),
+    addr:    document.getElementById('f-addr').value.trim(),
+    loc:     document.getElementById('f-loc').value.trim(),
+    tv:      document.getElementById('f-tv').value.trim(),
+    sw:      document.getElementById('f-sw').value.trim(),
+    comm:    document.getElementById('f-comm').value.trim(),
+    box:     document.getElementById('f-box').value.trim(),
+    access:  document.getElementById('f-access').value.trim(),
+    comment: document.getElementById('f-comment').value.trim(),
   };
 
+  // Обязателен адрес
   if (!data.addr){
     showFormMsg('err', 'Укажите адрес.');
+    return;
+  }
+
+  // Если заполнен ТОЛЬКО адрес — не отправляем
+  const hasOther = data.loc || data.tv || data.sw || data.comm ||
+                   data.box || data.access || data.comment;
+  if (!hasOther){
+    showFormMsg('err', 'Заполните хотя бы одно поле, кроме адреса (расположение, оборудование, №, ящики, доступ или комментарий).');
     return;
   }
 
@@ -632,6 +647,7 @@ $form.addEventListener('submit', async (e) => {
   }
   if (data.box) lines.push('📦 <b>Ящики Ethernet:</b> ' + tg(data.box));
   if (data.access) lines.push('🔑 <b>Доступ:</b> ' + tg(data.access));
+  if (data.comment) lines.push('💬 <b>Комментарий:</b> ' + tg(data.comment));
   lines.push('', '🕒 ' + new Date().toLocaleString('ru-RU'));
 
   const text = lines.join('\n');
